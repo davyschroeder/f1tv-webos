@@ -137,7 +137,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .debug pre { margin: 0; font-family: Menlo, Consolas, monospace; font-size: 18px; color: #d8d8e0; white-space: pre-wrap; word-break: break-all; }
 
 /* Audio menu */
-.audio-menu { position: absolute; right: 70px; bottom: 90px; min-width: 560px; background: rgba(20,20,30,0.96); border-radius: 14px; padding: 20px 0 14px 0; border: 2px solid #3a3a4a; }
+.audio-menu { position: absolute; right: 60px; bottom: 170px; min-width: 560px; background: rgba(20,20,30,0.96); border-radius: 14px; padding: 20px 0 14px 0; border: 2px solid #3a3a4a; }
 .am-title { font-size: 24px; font-weight: bold; color: #9a9aa6; padding: 0 28px 12px 28px; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .am-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 14px 28px; font-size: 30px; border-left: 6px solid transparent; }
 .am-row .am-dot { width: 40px; color: #e10600; font-size: 22px; }
@@ -149,5 +149,12 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .pstate { width: 40px; font-size: 26px; }
 .ptime { font-size: 24px; color: #d8d8e0; min-width: 110px; font-family: Menlo, Consolas, monospace; }
 #ptime-r { text-align: right; }
-.pbar { -webkit-flex: 1; flex: 1; height: 8px; background: rgba(255,255,255,0.25); border-radius: 4px; margin: 0 20px; overflow: hidden; }
-.pbar-fill { height: 100%; width: 0; background: #e10600; }
+.pbar { -webkit-flex: 1; flex: 1; height: 8px; background: rgba(255,255,255,0.25); border-radius: 4px; margin: 0 24px; position: relative; cursor: pointer; }
+.pbar:before { content: ""; position: absolute; left: 0; right: 0; top: -16px; bottom: -16px; } /* bigger click target for the pointer */
+.pbar-fill { height: 100%; width: 0; background: #e10600; border-radius: 4px; }
+.pbar-knob { position: absolute; top: 50%; left: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #e10600; box-shadow: 0 0 0 3px rgba(255,255,255,0.85); }
+.pbar.hover .pbar-knob { width: 28px; height: 28px; margin: -14px 0 0 -14px; }
+.pgear { width: 56px; height: 56px; margin-left: 20px; border-radius: 50%; font-size: 34px; line-height: 56px; text-align: center; background: rgba(255,255,255,0.12); border: 3px solid transparent; cursor: pointer; }
+.pgear.focus, .pgear:hover { background: #fff; color: #15151e; }
+
+.audio-menu:after { content: ""; position: absolute; right: 22px; bottom: -14px; border: 12px solid transparent; border-bottom: 0; border-top-color: #3a3a4a; } /* points down at the ⚙ button */

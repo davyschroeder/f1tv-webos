@@ -2,6 +2,12 @@
 
 Each `## <version>` section becomes the release notes of the GitHub release for that version tag.
 
+## 0.2.8 — 2026-11-03
+
+- Progress bar: red knob at the current position; click anywhere on the bar with the pointer to jump there
+- Moving the pointer or scrolling shows the bar and controls
+- ⚙ button next to the bar opens the commentary-language menu, dropping up from the button (green button still works)
+
 ## 0.2.7 — 2026-11-03
 
 - Every video starts on English (International) commentary; the green-button menu changes it for that video only

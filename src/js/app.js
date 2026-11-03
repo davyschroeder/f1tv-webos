@@ -19,7 +19,7 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.7;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.8;playerVersion=4.3.6',
     deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
     muxUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/mux.js/6.3.0/mux.min.js',
@@ -514,6 +514,7 @@
         preferredAudioCodecs: ['mp4a'],
         restrictions: { maxHeight: CFG.maxHeight }
       });
+      this.bindPointer();
       this.video.addEventListener('playing', function () { self.msg(null); });
       this.video.addEventListener('waiting', function () { self.msg('Buffering…'); });
     },
@@ -542,9 +543,31 @@
       clearTimeout(this.overlayTimer);
       if (!this.barTimer) this.barTimer = setInterval(function () { self.updateBar(); }, 500);
       this.overlayTimer = setTimeout(function () {
-        if (self.video && self.video.paused && UI.current === 'player') return; // stay visible while paused
+        if ((self.video && self.video.paused && UI.current === 'player') || self.menuOpen) return; // stay visible while paused or in the menu
         $('player-overlay').style.display = 'none';
       }, CFG.overlayMs);
+    },
+
+    /* pointer on the bar: click jumps there */
+    seekToClientX: function (x) {
+      if (!this.player || !this.video) return;
+      var b = $('pbar').getBoundingClientRect(), r = this.player.seekRange();
+      var f = Math.max(0, Math.min(1, (x - b.left) / b.width));
+      this.video.currentTime = r.start + f * (r.end - r.start);
+      this.showOverlay();
+    },
+
+    bindPointer: function () {
+      var self = this;
+      if (this.pointerBound) return; this.pointerBound = true;
+      var last = 0;
+      $('scr-player').addEventListener('mousemove', function () {
+        var now = Date.now(); if (now - last > 200) { last = now; if (!self.menuOpen) self.showOverlay(); }
+      });
+      $('pbar').addEventListener('click', function (e) { e.stopPropagation(); self.seekToClientX(e.clientX); });
+      $('pbar').addEventListener('mouseover', function () { $('pbar').className = 'pbar hover'; });
+      $('pbar').addEventListener('mouseout', function () { $('pbar').className = 'pbar'; });
+      $('psettings').addEventListener('click', function (e) { e.stopPropagation(); if (self.menuOpen) self.closeAudioMenu(); else self.openAudioMenu(); });
     },
 
     fmt: function (sec) {
@@ -557,7 +580,9 @@
       if (!this.player || !this.video || $('player-overlay').style.display === 'none') return;
       var r; try { r = this.player.seekRange(); } catch (e) { return; }
       var len = Math.max(0, r.end - r.start), pos = Math.max(0, Math.min(len, this.video.currentTime - r.start));
-      $('pbar-fill').style.width = (len ? pos / len * 100 : 0) + '%';
+      var pct = (len ? pos / len * 100 : 0) + '%';
+      $('pbar-fill').style.width = pct;
+      $('pbar-knob').style.left = pct;
       if (this.live) {
         var behind = len - pos;
         $('ptime-l').textContent = behind < 15 ? 'LIVE' : '-' + this.fmt(behind);
@@ -678,7 +703,9 @@
       this.menuOpen = true;
       this.renderAudioMenu();
       $('audio-menu').className = 'audio-menu';
-      $('player-overlay').style.display = 'none';
+      $('psettings').className = 'pgear focus';
+      $('player-overlay').style.display = 'block';   // menu drops up from the ⚙ button, so keep the bar visible
+      clearTimeout(this.overlayTimer);
     },
     renderAudioMenu: function () {
       var self = this, html = '';
@@ -693,7 +720,7 @@
         el.onclick = function () { self.menuIdx = idx; self.menuChoose(); };
       })(rows[i], i);
     },
-    closeAudioMenu: function () { this.menuOpen = false; $('audio-menu').className = 'audio-menu hidden'; this.showOverlay(); },
+    closeAudioMenu: function () { this.menuOpen = false; $('audio-menu').className = 'audio-menu hidden'; $('psettings').className = 'pgear'; this.showOverlay(); },
     menuMove: function (d) { this.menuIdx = Math.max(0, Math.min(this.menuTracks.length - 1, this.menuIdx + d)); this.renderAudioMenu(); },
     menuChoose: function () { var t = this.menuTracks[this.menuIdx]; if (t) this.selectAudio(t); this.closeAudioMenu(); },
     menuKey: function (k) {
@@ -1167,6 +1194,11 @@
   });
 
   function onWheel(e) {
+    if (UI.current === 'player') {
+      var dp = e.deltaY !== undefined ? e.deltaY : -(e.wheelDelta || 0);
+      if (Player.menuOpen) { if (dp) Player.menuMove(dp > 0 ? 1 : -1); } else Player.showOverlay();
+      e.preventDefault(); return;
+    }
     if (UI.current !== 'browse') return;
     var d = e.deltaY !== undefined ? e.deltaY : -(e.wheelDelta || 0);
     if (d) { Browse.wheel(d > 0 ? 1 : -1); e.preventDefault(); }

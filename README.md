@@ -80,7 +80,7 @@ The session is stored on the TV and refreshed automatically. The playback token 
 | player     | red             | go to live |
 | everywhere | BACK            | back; on the home screen it closes the app |
 
-The Magic Remote pointer works too (point = focus, click = OK).
+The Magic Remote pointer works too (point = focus, click = OK). In the player, moving the pointer or scrolling shows the controls; click on the progress bar to jump, and use the ⚙ button for the commentary language.
 
 ## How it works
 
