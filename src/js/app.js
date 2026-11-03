@@ -19,13 +19,14 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.0;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.1;playerVersion=4.3.6',
     shakaUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.min.js',
       'https://cdn.jsdelivr.net/npm/shaka-player@4.3.6/dist/shaka-player.compiled.min.js'
     ],
     seekStep: 15,
-    overlayMs: 4000
+    overlayMs: 4000,
+    maxHeight: 1080
   };
 
   var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 461, PLAY: 415, PAUSE: 19, STOP: 413, FF: 417, RW: 412,
@@ -228,8 +229,11 @@
       });
     },
 
-    authHeaders: function (token, entitlementToken) {
-      return { 'ascendontoken': token, 'entitlementtoken': entitlementToken || token, 'sessionid': this.playbackSessionId, 'x-f1-device-info': CFG.deviceInfo };
+    /* mode 'video' (feeds, licentie): entitlementtoken = subscriptionToken of de entitlementToken uit PLAY;
+       mode 'entitlement' (PLAY): entitlementtoken = sessie-id van het account, zoals de officiële clients. */
+    authHeaders: function (token, mode, entitlementToken) {
+      var ent = mode === 'entitlement' ? ((this.session && this.session.sessionId) || token) : (entitlementToken || token);
+      return { 'ascendontoken': token, 'entitlementtoken': ent, 'sessionid': this.playbackSessionId, 'x-f1-device-info': CFG.deviceInfo };
     }
   };
 
@@ -381,14 +385,17 @@
 
     /* Feeds van een sessie: hoofdfeed + additionalStreams (onboards, pitlane, data). */
     channels: function (contentId, cb) {
-      this.get('3.0/R/' + CFG.lang + '/' + CFG.catalogProvider + '/ALL/CONTENT/VIDEO/' + contentId + '/' + CFG.entitlement, null, function (err, json) {
+      var headers = Auth.session ? Auth.authHeaders(Auth.session.subscriptionToken, 'video') : null;
+      this.get('3.0/R/' + CFG.lang + '/' + CFG.catalogProvider + '/ALL/CONTENT/VIDEO/' + contentId + '/' + CFG.entitlement, headers, function (err, json) {
         if (err) return cb(err);
         var cs = (json.resultObj && json.resultObj.containers) || [];
         var meta = (cs[0] && cs[0].metadata) || {};
-        var feeds = [{ title: 'Hoofduitzending', type: 'main', playbackUrl: 'CONTENT/PLAY?contentId=' + contentId }];
-        var add = meta.additionalStreams || [];
+        var feeds = [{ title: 'Hoofduitzending (International)', type: 'main', playbackUrl: 'CONTENT/PLAY?contentId=' + contentId }];
+        var add = meta.additionalStreams || [], seen = {};
         for (var i = 0; i < add.length; i++) {
           var a = add[i];
+          if (!a || !a.playbackUrl || String(a.title || '').toUpperCase() === 'INTERNATIONAL' || seen[a.playbackUrl]) continue;
+          seen[a.playbackUrl] = true;
           feeds.push({
             title: a.title || (a.driverFirstName ? a.driverFirstName + ' ' + a.driverLastName : 'Feed ' + (i + 1)),
             type: a.type || 'additional', playbackUrl: a.playbackUrl, racingNumber: a.racingNumber,
@@ -408,7 +415,7 @@
       (function next(i) {
         if (i >= order.length) return cb(new Error('geen bruikbare stream (' + tried.join(', ') + ')'));
         var prov = order[i];
-        self.get('2.0/R/' + CFG.lang + '/' + prov + '/ALL/' + playbackUrl, Auth.authHeaders(token), function (err, json, res) {
+        self.get('2.0/R/' + CFG.lang + '/' + prov + '/ALL/' + playbackUrl, Auth.authHeaders(token, 'entitlement'), function (err, json, res) {
           var ro = json && json.resultObj;
           if (!err && res && res.status === 401) return cb(new Error('401'));
           if (err || !ro || !ro.url) { tried.push(prov + ':' + (err ? 'err' : (json && (json.errorDescription || json.resultCode || (res && res.status))))); return next(i + 1); }
@@ -459,20 +466,35 @@
       this.player.addEventListener('error', function (e) { self.onError(e.detail); });
       this.player.getNetworkingEngine().registerRequestFilter(function (type, req) {
         if (type === self.shaka.net.NetworkingEngine.RequestType.LICENSE && self.ent) {
-          var h = Auth.authHeaders(self.ent.token, self.ent.entitlementToken);
+          var h = Auth.authHeaders(self.ent.token, 'video', self.ent.entitlementToken);
           for (var k in h) if (h.hasOwnProperty(k)) req.headers[k] = h[k];
         }
       });
-      this.player.configure({ streaming: { bufferingGoal: 20, rebufferingGoal: 3, retryParameters: { maxAttempts: 4 } }, manifest: { retryParameters: { maxAttempts: 4 } }, abr: { enabled: true } });
+      this.player.configure({
+        streaming: { bufferingGoal: 20, rebufferingGoal: 3, retryParameters: { maxAttempts: 4 } },
+        manifest: { retryParameters: { maxAttempts: 4 } },
+        abr: { enabled: true },
+        preferredVideoCodecs: ['avc1'],      // geen HEVC/4K-varianten: versleutelde HEVC via MSE gaat mis op deze tv's
+        preferredAudioCodecs: ['mp4a'],
+        restrictions: { maxHeight: CFG.maxHeight }
+      });
       this.video.addEventListener('playing', function () { self.msg(null); });
       this.video.addEventListener('waiting', function () { self.msg('Bufferen…'); });
     },
 
     onError: function (err) {
       var code = err && err.code, cat = err && err.category;
-      Debug.log('shaka error', 'code', code, 'cat', cat, err && err.data ? JSON.stringify(err.data).slice(0, 200) : '');
+      var data = err && err.data ? JSON.stringify(err.data).slice(0, 300) : '';
+      Debug.log('shaka error', 'code', code, 'cat', cat, data);
+      try { Debug.log('actieve track', JSON.stringify((this.player.getVariantTracks().filter(function (t) { return t.active; })[0] || {})).slice(0, 300)); } catch (e) {}
+      if (code === 3016 && this.lastInfo && !this.lastInfo.retried) { // decodefout: één keer opnieuw, lager en conservatiever
+        this.lastInfo.retried = true;
+        Debug.log('retry op 720p na decodefout');
+        this.player.configure({ restrictions: { maxHeight: 720, maxBandwidth: 6000000 } });
+        return this.play(this.lastInfo);
+      }
       var hint = cat === 6 ? ' (DRM/licentie)' : cat === 1 ? ' (netwerk)' : cat === 4 ? ' (manifest)' : cat === 3 ? ' (media/codec)' : '';
-      this.msg('Afspeelfout ' + code + hint + ' — gele knop voor details');
+      this.msg('Afspeelfout ' + code + hint + (data ? ' · ' + data.replace(/[\[\]"]/g, '').slice(0, 120) : '') + ' — gele knop voor details');
     },
 
     msg: function (text) { var m = $('player-msg'); if (!text) { m.className = 'player-msg hidden'; return; } m.textContent = text; m.className = 'player-msg'; },
@@ -486,6 +508,7 @@
     /* info = {title, sub, playbackUrl, back: 'browse'|'feeds'} */
     play: function (info) {
       var self = this;
+      this.lastInfo = info;
       this.back = info.back || 'browse';
       UI.show('player');
       $('player-title').textContent = info.title;
@@ -495,6 +518,7 @@
       this.loadShaka(function (err) {
         if (err) return self.msg(String(err.message || err));
         self.init();
+        if (!info.retried) self.player.configure({ restrictions: { maxHeight: CFG.maxHeight, maxBandwidth: Infinity } });
         Auth.ensure(function (err2, token) {
           if (err2) { self.msg('Sessie verlopen — ga terug en log opnieuw in'); return; }
           Api.entitlement(info.playbackUrl, token, function (err3, ent) {
@@ -607,8 +631,8 @@
       $('tabs').innerHTML = html;
       var self = this, els = $('tabs').querySelectorAll('.tab');
       for (var k = 0; k < els.length; k++) (function (el, idx) {
-        el.onmouseover = function () { self.focusTo(-1, idx, 0); };
-        el.onclick = function () { self.focusTo(-1, idx, 0); self.activate(); };
+        el.onmouseover = function () { self.focusTo(-1, idx, 0, true); };
+        el.onclick = function () { self.focusTo(-1, idx, 0, true); self.activate(); };
       })(els[k], k);
     },
 
@@ -680,8 +704,8 @@
       this.secs = secs; this.rowX = [];
       for (i = 0; i < secs.length; i++) (function (si) {
         for (var c = 0; c < secs[si].cols.length; c++) for (var r = 0; r < secs[si].cols[c].length; r++) (function (ci, ri, fel) {
-          fel.onmouseover = function () { self.focusTo(si, ci, ri); };
-          fel.onclick = function () { self.focusTo(si, ci, ri); self.activate(); };
+          fel.onmouseover = function () { self.focusTo(si, ci, ri, true); };
+          fel.onclick = function () { self.focusTo(si, ci, ri, true); self.activate(); };
         })(c, r, secs[si].cols[c][r]);
       })(i);
       if (nav) { this.rowX = nav.rowX || []; this.focusTo(nav.s, nav.c, nav.r); }
@@ -755,24 +779,39 @@
       var col = sec.cols[this.c]; return col ? (col[this.r] || null) : null;
     },
 
-    focusTo: function (s, c, r) {
+    /* quiet = alleen markeren (Magic Remote-pointer), niet scrollen */
+    focusTo: function (s, c, r, quiet) {
       UI.setFocus(this.currentEl(), false);
       if (s !== -1 && !this.secs[s]) s = this.secs.length ? 0 : -1;
       this.s = s;
       if (s === -1) {
         var n = $('tabs').querySelectorAll('.tab').length;
         this.c = Math.max(0, Math.min(c, n - 1)); this.r = 0;
-        this.scrollTo(0);
+        if (!quiet) this.scrollTo(0);
       } else {
         var sec = this.secs[s];
         this.c = Math.max(0, Math.min(c, sec.cols.length - 1));
         this.r = Math.max(0, Math.min(r, sec.cols[this.c].length - 1));
         if (sec.sec.type === 'hero') this.showSlide(sec, this.c);
-        if (sec.sec.type === 'row') this.scrollRow(sec, s);
-        var bottom = sec.el.offsetTop + sec.el.offsetHeight;
-        this.scrollTo(sec.sec.type === 'hero' || bottom <= 1040 ? 0 : Math.max(0, sec.el.offsetTop - 150));
+        if (!quiet) {
+          if (sec.sec.type === 'row') this.scrollRow(sec, s);
+          var bottom = sec.el.offsetTop + sec.el.offsetHeight;
+          this.scrollTo(sec.sec.type === 'hero' || bottom <= 1040 ? 0 : Math.max(0, sec.el.offsetTop - 150));
+        }
       }
       UI.setFocus(this.currentEl(), true);
+    },
+
+    wheel: function (dir) {
+      var now = Date.now();
+      if (this.wheelAt && now - this.wheelAt < 250) return;
+      this.wheelAt = now;
+      if (this.s === -1) { if (dir > 0 && this.secs.length) this.focusTo(0, 0, 0); return; }
+      var ns = this.s + dir;
+      if (ns < 0) { this.focusTo(-1, this.tabIndex, 0); return; }
+      if (ns >= this.secs.length) return;
+      var nsec = this.secs[ns];
+      this.focusTo(ns, Math.min(this.c, nsec.cols.length - 1), 0);
     },
 
     showSlide: function (sec, idx) {
@@ -920,17 +959,18 @@
           $('feeds-list').innerHTML = html;
           self.els = Array.prototype.slice.call($('feeds-list').querySelectorAll('.lrow'));
           for (i = 0; i < self.els.length; i++) (function (i) {
-            self.els[i].onmouseover = function () { self.focus(i); };
+            self.els[i].onmouseover = function () { self.focus(i, true); };
             self.els[i].onclick = function () { self.focus(i); self.select(); };
           })(i);
           self.focus(Math.min(self.idx, self.els.length - 1));
         });
       },
-      focus: function (i) {
+      focus: function (i, quiet) {
         if (!this.els.length) return;
         UI.setFocus(this.els[this.idx], false);
         this.idx = Math.max(0, Math.min(i, this.els.length - 1));
         UI.setFocus(this.els[this.idx], true);
+        if (quiet) return;
         var el = this.els[this.idx], list = $('feeds-list');
         var top = el.offsetTop - list.offsetTop, bottom = top + el.offsetHeight;
         if (top < list.scrollTop + 10) list.scrollTop = Math.max(0, top - 10);
@@ -982,6 +1022,14 @@
     var handled = scr && scr.key ? scr.key(k) : false;
     if (handled || k === KEY.BACK || (k >= 37 && k <= 40)) e.preventDefault();
   });
+
+  function onWheel(e) {
+    if (UI.current !== 'browse') return;
+    var d = e.deltaY !== undefined ? e.deltaY : -(e.wheelDelta || 0);
+    if (d) { Browse.wheel(d > 0 ? 1 : -1); e.preventDefault(); }
+  }
+  document.addEventListener('wheel', onWheel);
+  document.addEventListener('mousewheel', onWheel);
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && Player.video && !Player.video.paused) Player.video.pause();

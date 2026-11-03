@@ -16,6 +16,7 @@ SUB = jwt({"SessionId": "sess-1", "SubscriberId": 42, "exp": int(time.time()) + 
 ACCESS = jwt({"sub": "42", "subscriptionToken": SUB})
 polls = {"n": 0}
 log = []
+play_headers = []
 
 def cors(extra=None):
     h = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "*", "Content-Type": "application/json"}
@@ -93,6 +94,7 @@ def handle(route, request):
                {"type": "obc", "playbackUrl": "CONTENT/PLAY?channelId=1030&contentId=3007", "driverFirstName": "Max", "driverLastName": "Verstappen", "teamName": "Red Bull Racing", "racingNumber": 1, "hex": "3671C6", "title": "Max Verstappen"}]
         return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "OK", "resultObj": {"containers": [{"metadata": {"additionalStreams": add}}]}}))
     if "CONTENT/PLAY" in url:
+        play_headers.append({k.lower(): v for k, v in request.headers.items()})
         if "BIG_SCREEN_DASH" in url:
             return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "OK", "resultObj": {"url": "https://cdn.example/stream.mpd?token=x", "streamType": "DASHWV", "drmType": "widevine", "laURL": "https://cdn.example/license", "entitlementToken": "ent1", "channelId": 1030}}))
         return route.fulfill(status=404, headers=cors(), body=json.dumps({"resultCode": "KO", "errorDescription": "not found"}))
@@ -163,6 +165,9 @@ with sync_playwright() as p:
     check(page.is_visible("#scr-player"), "player screen shown")
     check(page.evaluate("window.__stubLoaded && window.__stubLoaded.url") == "https://cdn.example/stream.mpd?token=x", "shaka.load called with stream url")
     check(page.evaluate("window.__stubLoaded.licHeaders.ascendontoken") == SUB, "license request filter adds ascendontoken")
+    check(page.evaluate("window.__stubLoaded.licHeaders.entitlementtoken") == "ent1", "license request uses the entitlementToken from PLAY")
+    check(play_headers and play_headers[-1].get("entitlementtoken") == "sess-1" and play_headers[-1].get("ascendontoken") == SUB, "PLAY request sends session id as entitlementtoken: %s" % (play_headers[-1] if play_headers else None))
+    check(page.evaluate("() => document.querySelector('[data-sec=\"1\"]') && true"), "page still rendered")
     key(page, 461)
     page.wait_for_timeout(200)
     check(page.is_visible("#scr-feeds"), "back from player returns to feeds")
