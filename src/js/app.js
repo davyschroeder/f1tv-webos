@@ -19,7 +19,8 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.1;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.2;playerVersion=4.3.6',
+    deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
     shakaUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.min.js',
       'https://cdn.jsdelivr.net/npm/shaka-player@4.3.6/dist/shaka-player.compiled.min.js'
@@ -100,7 +101,7 @@
       done = true; clearTimeout(timer);
       var res = { status: x.status, text: x.responseText || '', json: null };
       try { res.json = JSON.parse(res.text); } catch (e) {}
-      if (x.status === 0) { cb(new Error('netwerkfout (status 0)'), res); return; }
+      if (x.status === 0) { cb(new Error('network error (status 0)'), res); return; }
       cb(null, res);
     };
     try {
@@ -123,13 +124,13 @@
     save: function (s) { this.session = s; if (s) Store.set('session', s); else Store.del('session'); },
 
     parseTokens: function (json, previous) {
-      if (!json || !json.access_token) throw new Error('geen access_token');
+      if (!json || !json.access_token) throw new Error('no access_token');
       var access = decodeJwt(json.access_token) || {};
       var subToken = access.subscriptionToken || (previous && previous.subscriptionToken);
-      if (!subToken) throw new Error('geen subscriptionToken in antwoord');
+      if (!subToken) throw new Error('no subscriptionToken in response');
       var claims = decodeJwt(subToken) || {};
       var subExp = (claims.exp || 0) * 1000;
-      if (subExp && subExp < Date.now()) throw new Error('subscriptionToken verlopen');
+      if (subExp && subExp < Date.now()) throw new Error('subscriptionToken expired');
       return {
         refreshToken: json.refresh_token || (previous && previous.refreshToken) || null,
         accessExp: Date.now() + (Number(json.expires_in) || 3600) * 1000,
@@ -152,7 +153,7 @@
         Debug.log('device_authorization', err ? String(err) : res.status, res && res.text ? res.text.slice(0, 200) : '');
         if (err) return onDone(err);
         var j = res.json;
-        if (res.status !== 200 || !j || !j.device_code || !j.user_code) return onDone(new Error('login-service gaf HTTP ' + res.status));
+        if (res.status !== 200 || !j || !j.device_code || !j.user_code) return onDone(new Error('sign-in service returned HTTP ' + res.status));
         onCode({ userCode: j.user_code, verificationUri: j.verification_uri, verificationUriComplete: j.verification_uri_complete || j.verification_uri });
         var interval = (Number(j.interval) || 5) * 1000;
         var expires = Date.now() + (Number(j.expires_in) || 600) * 1000;
@@ -163,10 +164,10 @@
             if (run !== self.loginRun) return;
             self.form('token', { client_id: CFG.clientId, grant_type: 'urn:ietf:params:oauth:grant-type:device_code', device_code: j.device_code }, function (err2, res2) {
               if (run !== self.loginRun) return;
-              if (err2) { Debug.log('token poll fout', String(err2)); return poll(); }
+              if (err2) { Debug.log('token poll error', String(err2)); return poll(); }
               if (res2.status === 200) {
-                try { var s = self.parseTokens(res2.json, null); self.save(s); Debug.log('ingelogd als', s.profile.email, 'sub exp', new Date(s.subExp).toISOString()); return onDone(null, s); }
-                catch (e) { Debug.log('token parse fout', String(e), res2.text.slice(0, 300)); return onDone(e); }
+                try { var s = self.parseTokens(res2.json, null); self.save(s); Debug.log('signed in as', s.profile.email, 'sub exp', new Date(s.subExp).toISOString()); return onDone(null, s); }
+                catch (e) { Debug.log('token parse error', String(e), res2.text.slice(0, 300)); return onDone(e); }
               }
               var oe = res2.json && res2.json.error;
               Debug.log('token poll', res2.status, oe || res2.text.slice(0, 120));
@@ -175,7 +176,7 @@
               if (res2.status >= 500) { interval = Math.min(interval * 2, 60000); return poll(); }
               if (oe === 'access_denied') return onDone(new Error('denied'));
               if (oe === 'expired_token') return onDone(new Error('expired'));
-              return onDone(new Error('login geweigerd: ' + (oe || res2.status)));
+              return onDone(new Error('sign-in rejected: ' + (oe || res2.status)));
             });
           }, interval);
         })();
@@ -186,20 +187,20 @@
 
     refresh: function (cb) {
       var self = this, s = this.session;
-      if (!s || !s.refreshToken) return cb(new Error('geen refresh token'));
+      if (!s || !s.refreshToken) return cb(new Error('no refresh token'));
       this.form('token', { client_id: CFG.clientId, grant_type: 'refresh_token', refresh_token: s.refreshToken }, function (err, res) {
         Debug.log('refresh', err ? String(err) : res.status, res && res.json && res.json.error ? res.json.error : '');
         if (err) return cb(err);
         if (res.status === 400 && res.json && res.json.error === 'invalid_grant') { self.save(null); return cb(new Error('invalid_grant')); }
         if (res.status !== 200) return cb(new Error('refresh HTTP ' + res.status));
         try { var ns = self.parseTokens(res.json, s); self.save(ns); cb(null, ns); }
-        catch (e) { if (String(e).indexOf('verlopen') >= 0) self.save(null); cb(e); }
+        catch (e) { if (String(e).indexOf('expired') >= 0) self.save(null); cb(e); }
       });
     },
 
     retrieveSubscriber: function (cb) {
       var self = this, s = this.session;
-      if (!s || !s.sessionId) return cb(new Error('geen sessie'));
+      if (!s || !s.sessionId) return cb(new Error('no session'));
       http({ method: 'POST', url: CFG.accountBase + 'v1/account/Subscriber/RetrieveSubscriber', body: '{}',
              headers: { 'Content-Type': 'application/json', 'apikey': CFG.apiKey, 'CD-SystemID': CFG.systemId, 'CD-Language': CFG.lang, 'CD-SessionID': s.sessionId } },
         function (err, res) {
@@ -231,9 +232,11 @@
 
     /* mode 'video' (feeds, licentie): entitlementtoken = subscriptionToken of de entitlementToken uit PLAY;
        mode 'entitlement' (PLAY): entitlementtoken = sessie-id van het account, zoals de officiële clients. */
-    authHeaders: function (token, mode, entitlementToken) {
+    authHeaders: function (token, mode, entitlementToken, deviceInfo) {
       var ent = mode === 'entitlement' ? ((this.session && this.session.sessionId) || token) : (entitlementToken || token);
-      return { 'ascendontoken': token, 'entitlementtoken': ent, 'sessionid': this.playbackSessionId, 'x-f1-device-info': CFG.deviceInfo };
+      var h = { 'ascendontoken': token, 'entitlementtoken': ent, 'sessionid': this.playbackSessionId };
+      if (deviceInfo !== null) h['x-f1-device-info'] = deviceInfo || CFG.deviceInfo;
+      return h;
     }
   };
 
@@ -241,7 +244,6 @@
    * Catalogus-API: menu, pagina's, feeds, entitlement
    * ====================================================================== */
   var Api = {
-    playProvider: Store.get('provider', null),
     cache: {},
 
     resolve: function (uri) {
@@ -255,10 +257,11 @@
 
     get: function (path, headers, cb) {
       http({ method: 'GET', url: CFG.catalogBase + path, headers: headers || {} }, function (err, res) {
-        var rc = res && res.json && res.json.resultCode;
-        Debug.log('GET', path.slice(0, 110), err ? String(err) : res.status, rc || (res ? res.text.slice(0, 80) : ''));
+        var j = res && res.json, rc = j && j.resultCode;
+        Debug.log('GET', path.slice(0, 110), err ? String(err) : res.status, rc || (res ? res.text.slice(0, 80) : ''),
+                  j && rc !== 'OK' ? (j.errorDescription || '') + ' ' + (j.message || '') : '');
         if (err) return cb(err);
-        if (!res.json) return cb(new Error('geen JSON (HTTP ' + res.status + ')'), null, res);
+        if (!res.json) return cb(new Error('no JSON (HTTP ' + res.status + ')'), null, res);
         cb(null, res.json, res);
       });
     },
@@ -283,7 +286,7 @@
           if (!uri || uri.indexOf('PAGE/') < 0) continue;
           tabs.push({ title: label, uri: uri });
         }
-        if (!tabs.length) { Debug.log('menu leeg; keys:', cs[0] ? Object.keys(cs[0]).join(',') : '-'); tabs.push({ title: 'Home', uri: '2.0/R/' + CFG.lang + '/' + CFG.catalogProvider + '/ALL/PAGE/395/' + CFG.entitlement }); }
+        if (!tabs.length) { Debug.log('menu empty; keys:', cs[0] ? Object.keys(cs[0]).join(',') : '-'); tabs.push({ title: 'Home', uri: '2.0/R/' + CFG.lang + '/' + CFG.catalogProvider + '/ALL/PAGE/395/' + CFG.entitlement }); }
         cb(null, tabs);
       });
     },
@@ -354,7 +357,7 @@
           continue;
         }
         for (j = 0; j < raw.length; j++) items.push(self.item(raw[j]));
-        if (!items.length) { if (layout) Debug.log('sectie zonder items', layout, label); continue; }
+        if (!items.length) { if (layout) Debug.log('section without items', layout, label); continue; }
         var va = self.action(n, 'onTitleClick');
         out.sections.push({ type: 'row', title: label, items: items, poster: /poster/i.test(layout) || /^vertical/i.test(layout), viewAll: va ? self.resolve(va.uri) : null });
       }
@@ -376,7 +379,7 @@
         var page = self.parsePage(json);
         if (!page.sections.length) {
           var cs = (json.resultObj && json.resultObj.containers) || [];
-          Debug.log('pagina zonder secties; layouts:', cs.map(function (c) { return c.layout; }).join(','));
+          Debug.log('page without sections; layouts:', cs.map(function (c) { return c.layout; }).join(','));
         }
         self.cache[uri] = { t: Date.now(), page: page };
         cb(null, page);
@@ -390,7 +393,7 @@
         if (err) return cb(err);
         var cs = (json.resultObj && json.resultObj.containers) || [];
         var meta = (cs[0] && cs[0].metadata) || {};
-        var feeds = [{ title: 'Hoofduitzending (International)', type: 'main', playbackUrl: 'CONTENT/PLAY?contentId=' + contentId }];
+        var feeds = [{ title: 'Main broadcast (International)', type: 'main', playbackUrl: 'CONTENT/PLAY?contentId=' + contentId }];
         var add = meta.additionalStreams || [], seen = {};
         for (var i = 0; i < add.length; i++) {
           var a = add[i];
@@ -407,26 +410,43 @@
     },
 
     /* Entitlement: {url, isDash, isHls, drmType, laURL, entitlementToken}. Probeert providers tot er een bruikbare stream is. */
+    /* Entitlement (PLAY): the open-source clients disagree on the exact headers, and F1 answers ACN_4004 when it
+       does not like the combination. So try the known variants until one returns a playable stream, and remember
+       the winner: header style (tvOS client / subscriptionToken / website) x device-info x provider. */
     entitlement: function (playbackUrl, token, cb) {
       var self = this;
-      var order = CFG.playProviders.slice();
-      if (this.playProvider && order.indexOf(this.playProvider) > 0) { order.splice(order.indexOf(this.playProvider), 1); order.unshift(this.playProvider); }
-      var tried = [];
+      var combos = [];
+      var variants = [
+        { id: 'session', mode: 'entitlement', dev: [CFG.deviceInfoTv, CFG.deviceInfo] },   // entitlementtoken = account session id (F1AppleTV)
+        { id: 'sub', mode: 'video', dev: [CFG.deviceInfo, CFG.deviceInfoTv] },             // entitlementtoken = subscriptionToken
+        { id: 'web', mode: 'web', dev: [null] }                                             // website: ascendontoken only
+      ];
+      for (var v = 0; v < variants.length; v++) for (var d = 0; d < variants[v].dev.length; d++) for (var pI = 0; pI < CFG.playProviders.length; pI++)
+        combos.push({ v: variants[v].id, mode: variants[v].mode, dev: variants[v].dev[d], prov: CFG.playProviders[pI] });
+      var best = Store.get('playCombo', null);
+      if (best) for (var k = 0; k < combos.length; k++) if (combos[k].v === best.v && combos[k].dev === best.dev && combos[k].prov === best.prov) { combos.unshift(combos.splice(k, 1)[0]); break; }
+      var tried = [], firstMsg = '';
       (function next(i) {
-        if (i >= order.length) return cb(new Error('geen bruikbare stream (' + tried.join(', ') + ')'));
-        var prov = order[i];
-        self.get('2.0/R/' + CFG.lang + '/' + prov + '/ALL/' + playbackUrl, Auth.authHeaders(token, 'entitlement'), function (err, json, res) {
+        if (i >= combos.length) return cb(new Error('no playable stream' + (firstMsg ? ': ' + firstMsg : '') + ' (' + tried.length + ' variants tried, yellow button for the list)'));
+        var c = combos[i];
+        var headers = c.mode === 'web' ? { 'ascendontoken': token } : Auth.authHeaders(token, c.mode, null, c.dev);
+        self.get('2.0/R/' + CFG.lang + '/' + c.prov + '/ALL/' + playbackUrl, headers, function (err, json, res) {
           var ro = json && json.resultObj;
-          if (!err && res && res.status === 401) return cb(new Error('401'));
-          if (err || !ro || !ro.url) { tried.push(prov + ':' + (err ? 'err' : (json && (json.errorDescription || json.resultCode || (res && res.status))))); return next(i + 1); }
+          if (!err && res && res.status === 401 && i === combos.length - 1) return cb(new Error('401'));
+          if (err || !ro || !ro.url) {
+            var why = err ? String(err) : (json && (json.errorDescription || json.resultCode || (res && res.status)));
+            if (!firstMsg && json && (json.message || json.errorDescription)) firstMsg = (json.message || '') + (json.errorDescription ? ' (' + json.errorDescription + ')' : '');
+            tried.push(c.v + '/' + (c.dev ? c.dev.slice(7, 13) : '-') + '/' + c.prov + ':' + why);
+            return next(i + 1);
+          }
           var st = String(ro.streamType || '').toUpperCase();
           var isDash = st.indexOf('DASH') >= 0 || /\.mpd(\?|$)/i.test(ro.url);
           var isHls = st.indexOf('HLS') >= 0 || /\.m3u8(\?|$)/i.test(ro.url);
           var drm = String(ro.drmType || '').toLowerCase();
-          Debug.log('entitlement', prov, 'streamType', ro.streamType, 'drmType', ro.drmType, 'laURL', ro.laURL ? 'ja' : 'nee', 'url', ro.url.slice(0, 90));
-          if (drm.indexOf('fairplay') >= 0 || (!isDash && !isHls)) { tried.push(prov + ':' + (ro.drmType || ro.streamType)); return next(i + 1); }
-          self.playProvider = prov; Store.set('provider', prov);
-          cb(null, { url: ro.url, isDash: isDash, isHls: isHls, drmType: drm, laURL: ro.laURL || ro.laUrl || null, entitlementToken: ro.entitlementToken || null, channelId: ro.channelId });
+          Debug.log('entitlement OK', c.v, c.dev ? c.dev.slice(0, 20) : 'no dev', c.prov, 'streamType', ro.streamType, 'drmType', ro.drmType, 'laURL', ro.laURL ? 'yes' : 'no', 'url', ro.url.slice(0, 90));
+          if (drm.indexOf('fairplay') >= 0 || (!isDash && !isHls)) { tried.push(c.v + '/' + c.prov + ':' + (ro.drmType || ro.streamType)); return next(i + 1); }
+          Store.set('playCombo', { v: c.v, dev: c.dev, prov: c.prov });
+          cb(null, { url: ro.url, isDash: isDash, isHls: isHls, drmType: drm, laURL: ro.laURL || ro.laUrl || null, entitlementToken: ro.entitlementToken || null, channelId: ro.channelId, mode: c.mode, dev: c.dev });
         });
       })(0);
     }
@@ -441,17 +461,17 @@
     loadShaka: function (cb) {
       var self = this;
       if (window.shaka && window.shaka.Player) return cb(null);
-      if (this.loadingShaka) return cb(new Error('bezig met laden'));
+      if (this.loadingShaka) return cb(new Error('still loading'));
       this.loadingShaka = true;
       var urls = CFG.shakaUrls.slice();
       (function tryNext() {
         var url = urls.shift();
-        if (!url) { self.loadingShaka = false; return cb(new Error('Shaka Player kon niet worden geladen (internet?)')); }
+        if (!url) { self.loadingShaka = false; return cb(new Error('Shaka Player could not be loaded (internet?)')); }
         var s = document.createElement('script');
         var done = false;
         var t = setTimeout(function () { if (!done) { done = true; Debug.log('shaka timeout', url); tryNext(); } }, 20000);
-        s.onload = function () { if (done) return; done = true; clearTimeout(t); self.loadingShaka = false; Debug.log('shaka geladen', url); cb(null); };
-        s.onerror = function () { if (done) return; done = true; clearTimeout(t); Debug.log('shaka fout', url); tryNext(); };
+        s.onload = function () { if (done) return; done = true; clearTimeout(t); self.loadingShaka = false; Debug.log('shaka loaded', url); cb(null); };
+        s.onerror = function () { if (done) return; done = true; clearTimeout(t); Debug.log('shaka load error', url); tryNext(); };
         s.src = url; document.head.appendChild(s);
       })();
     },
@@ -466,7 +486,7 @@
       this.player.addEventListener('error', function (e) { self.onError(e.detail); });
       this.player.getNetworkingEngine().registerRequestFilter(function (type, req) {
         if (type === self.shaka.net.NetworkingEngine.RequestType.LICENSE && self.ent) {
-          var h = Auth.authHeaders(self.ent.token, 'video', self.ent.entitlementToken);
+          var h = self.ent.mode === 'web' ? { 'ascendontoken': self.ent.token } : Auth.authHeaders(self.ent.token, 'video', self.ent.entitlementToken, self.ent.dev);
           for (var k in h) if (h.hasOwnProperty(k)) req.headers[k] = h[k];
         }
       });
@@ -474,27 +494,27 @@
         streaming: { bufferingGoal: 20, rebufferingGoal: 3, retryParameters: { maxAttempts: 4 } },
         manifest: { retryParameters: { maxAttempts: 4 } },
         abr: { enabled: true },
-        preferredVideoCodecs: ['avc1'],      // geen HEVC/4K-varianten: versleutelde HEVC via MSE gaat mis op deze tv's
+        preferredVideoCodecs: ['avc1'],      // no HEVC/4K variants: encrypted HEVC through MSE fails on these TVs
         preferredAudioCodecs: ['mp4a'],
         restrictions: { maxHeight: CFG.maxHeight }
       });
       this.video.addEventListener('playing', function () { self.msg(null); });
-      this.video.addEventListener('waiting', function () { self.msg('Bufferen…'); });
+      this.video.addEventListener('waiting', function () { self.msg('Buffering…'); });
     },
 
     onError: function (err) {
       var code = err && err.code, cat = err && err.category;
       var data = err && err.data ? JSON.stringify(err.data).slice(0, 300) : '';
       Debug.log('shaka error', 'code', code, 'cat', cat, data);
-      try { Debug.log('actieve track', JSON.stringify((this.player.getVariantTracks().filter(function (t) { return t.active; })[0] || {})).slice(0, 300)); } catch (e) {}
+      try { Debug.log('active track', JSON.stringify((this.player.getVariantTracks().filter(function (t) { return t.active; })[0] || {})).slice(0, 300)); } catch (e) {}
       if (code === 3016 && this.lastInfo && !this.lastInfo.retried) { // decodefout: één keer opnieuw, lager en conservatiever
         this.lastInfo.retried = true;
-        Debug.log('retry op 720p na decodefout');
+        Debug.log('retrying at 720p after decode error');
         this.player.configure({ restrictions: { maxHeight: 720, maxBandwidth: 6000000 } });
         return this.play(this.lastInfo);
       }
-      var hint = cat === 6 ? ' (DRM/licentie)' : cat === 1 ? ' (netwerk)' : cat === 4 ? ' (manifest)' : cat === 3 ? ' (media/codec)' : '';
-      this.msg('Afspeelfout ' + code + hint + (data ? ' · ' + data.replace(/[\[\]"]/g, '').slice(0, 120) : '') + ' — gele knop voor details');
+      var hint = cat === 6 ? ' (DRM/licence)' : cat === 1 ? ' (network)' : cat === 4 ? ' (manifest)' : cat === 3 ? ' (media/codec)' : '';
+      this.msg('Playback error ' + code + hint + (data ? ' · ' + data.replace(/[\[\]"]/g, '').slice(0, 120) : '') + ' — yellow button for details');
     },
 
     msg: function (text) { var m = $('player-msg'); if (!text) { m.className = 'player-msg hidden'; return; } m.textContent = text; m.className = 'player-msg'; },
@@ -514,24 +534,24 @@
       $('player-title').textContent = info.title;
       $('player-sub').textContent = info.sub || '';
       this.showOverlay();
-      this.msg('Laden…');
+      this.msg('Loading…');
       this.loadShaka(function (err) {
         if (err) return self.msg(String(err.message || err));
         self.init();
         if (!info.retried) self.player.configure({ restrictions: { maxHeight: CFG.maxHeight, maxBandwidth: Infinity } });
         Auth.ensure(function (err2, token) {
-          if (err2) { self.msg('Sessie verlopen — ga terug en log opnieuw in'); return; }
+          if (err2) { self.msg('Session expired — go back and sign in again'); return; }
           Api.entitlement(info.playbackUrl, token, function (err3, ent) {
-            if (err3) { self.msg(String(err3.message || err3) + (String(err3.message) === '401' ? ' — niet gemachtigd (abonnement / sessie?)' : '')); return; }
+            if (err3) { self.msg(String(err3.message || err3) + (String(err3.message) === '401' ? ' — not authorised (subscription / session?)' : '')); return; }
             ent.token = token; self.ent = ent;
             var drm = { servers: {} };
             if (ent.laURL) { if (ent.drmType.indexOf('playready') >= 0) drm.servers['com.microsoft.playready'] = ent.laURL; else drm.servers['com.widevine.alpha'] = ent.laURL; }
             self.player.configure({ drm: drm });
             var mime = ent.isDash ? 'application/dash+xml' : (ent.isHls ? 'application/x-mpegURL' : undefined);
-            Debug.log('load', mime, ent.laURL ? 'drm ' + (ent.drmType || 'widevine?') : 'geen drm');
+            Debug.log('load', mime, ent.laURL ? 'drm ' + (ent.drmType || 'widevine?') : 'no drm');
             self.player.load(ent.url, null, mime).then(function () {
               self.live = self.player.isLive();
-              Debug.log('geladen; live', self.live, 'audio', JSON.stringify(self.player.getAudioLanguages()));
+              Debug.log('loaded; live', self.live, 'audio', JSON.stringify(self.player.getAudioLanguages()));
               $('player-sub').textContent = (info.sub || '') + (self.live ? ' · LIVE' : '') + self.audioLabel();
               self.msg(null);
               var p = self.video.play(); if (p && p.catch) p.catch(function () {});
@@ -566,7 +586,7 @@
     cycleAudio: function () {
       if (!this.player) return;
       var self = this, langs = this.player.getAudioLanguages();
-      if (!langs || langs.length < 2) { this.msg('Slechts één audiotaal'); setTimeout(function () { self.msg(null); }, 1500); return; }
+      if (!langs || langs.length < 2) { this.msg('Only one audio language'); setTimeout(function () { self.msg(null); }, 1500); return; }
       var cur = '', t = this.player.getVariantTracks();
       for (var i = 0; i < t.length; i++) if (t[i].active) cur = t[i].language;
       var next = langs[(langs.indexOf(cur) + 1) % langs.length];
@@ -617,9 +637,9 @@
 
     loadMenu: function () {
       var self = this;
-      this.status('Menu laden…');
+      this.status('Loading menu…');
       Api.menu(function (err, tabs) {
-        if (err) { self.status('Menu kon niet geladen worden: ' + err.message + ' (OK = opnieuw)'); self.tabs = []; self.renderTabs(); return; }
+        if (err) { self.status('Could not load the menu: ' + err.message + ' (OK = retry)'); self.tabs = []; self.renderTabs(); return; }
         self.tabs = tabs; self.renderTabs(); self.openTab(0);
       });
     },
@@ -647,14 +667,14 @@
       this.saveNav();
       var entry = { uri: uri, title: title, page: null, nav: null, root: !!isRoot };
       this.stack.push(entry);
-      this.status('Laden…');
+      this.status('Loading…');
       $('page').innerHTML = '';
       Api.page(uri, function (err, page) {
         if (self.stack[self.stack.length - 1] !== entry) return;
-        if (err) { self.status('Kon pagina niet laden: ' + err.message + ' (BACK = terug)'); self.secs = []; return; }
+        if (err) { self.status('Could not load the page: ' + err.message + ' (BACK = go back)'); self.secs = []; return; }
         entry.page = page;
         if (entry.root && self.tabIndex === 0) { self.live = page.live; self.renderTabs(); }
-        self.status(page.sections.length ? '' : 'Lege pagina (gele knop voor details)');
+        self.status(page.sections.length ? '' : 'Empty page (yellow button for details)');
         self.render();
       });
     },
@@ -673,7 +693,7 @@
       if (!this.live.length) return;
       if (this.live.length === 1) return this.open(this.live[0]);
       this.saveNav();
-      this.stack.push({ uri: 'live', title: 'Live', page: { sections: [{ type: 'heading', title: 'Live nu' }, { type: 'row', title: '', items: this.live }], live: this.live }, nav: null });
+      this.stack.push({ uri: 'live', title: 'Live', page: { sections: [{ type: 'heading', title: 'Live now' }, { type: 'row', title: '', items: this.live }], live: this.live }, nav: null });
       this.render();
     },
 
@@ -727,7 +747,7 @@
 
     renderRow: function (sec, i) {
       var html = '<div class="section" data-sec="' + i + '">';
-      if (sec.title) html += '<div class="section-title">' + esc(sec.title) + (sec.viewAll ? '<span class="viewall">Alles →</span>' : '') + '</div>';
+      if (sec.title) html += '<div class="section-title">' + esc(sec.title) + (sec.viewAll ? '<span class="viewall">View all →</span>' : '') + '</div>';
       html += '<div class="row-wrap"><div class="row">';
       for (var j = 0; j < sec.items.length; j++) html += this.cardHtml(sec.items[j], sec.poster);
       return html + '</div></div></div>';
@@ -739,7 +759,7 @@
         var it = sec.items[j];
         html += '<div class="hero-slide' + (j === 0 ? ' current' : '') + '">' + (it.pictureUrl ? '<img src="' + esc(imgUrl(it.pictureUrl, 1920, 760)) + '" alt="">' : '') + '<div class="hero-shade"></div>' +
                 '<div class="hero-text"><div class="hero-label">' + esc(it.label) + (it.live ? ' <span class="badge live">LIVE</span>' : '') + '</div><div class="hero-title">' + esc(it.title) + '</div>' +
-                '<div class="hero-btn">' + (it.isVideo ? (it.live ? 'Kijk live' : 'Kijk nu') : 'Open') + '</div></div></div>';
+                '<div class="hero-btn">' + (it.isVideo ? (it.live ? 'Watch live' : 'Watch now') : 'Open') + '</div></div></div>';
       }
       if (sec.items.length > 1) { html += '<div class="hero-dots">'; for (j = 0; j < sec.items.length; j++) html += '<span' + (j === 0 ? ' class="on"' : '') + '></span>'; html += '</div>'; }
       return html + '</div>';
@@ -880,8 +900,8 @@
         Player.play({ title: it.title, sub: it.label || ctx, playbackUrl: it.playbackUrl, back: 'browse' }); return;
       }
       if (it.pageUri) { this.push(it.pageUri, it.title); return; }
-      Debug.log('item zonder actie', it.title, it.subtype);
-      this.status('Hier zit (nog) niets achter'); var self = this; setTimeout(function () { self.status(''); }, 1500);
+      Debug.log('item without action', it.title, it.subtype);
+      this.status('Nothing behind this (yet)'); var self = this; setTimeout(function () { self.status(''); }, 1500);
     },
 
     key: function (k) {
@@ -912,18 +932,18 @@
     login: {
       enter: function () {
         $('login-code').textContent = '…'; $('login-url').textContent = '…'; $('login-qr').innerHTML = ''; $('login-full').textContent = '';
-        $('login-status').textContent = 'Code ophalen…';
+        $('login-status').textContent = 'Getting a code…';
         Auth.startDeviceLogin(function (code) {
           $('login-code').textContent = code.userCode;
           $('login-url').textContent = String(code.verificationUri).replace(/^https?:\/\//, '');
           $('login-full').textContent = String(code.verificationUriComplete).replace(/^https?:\/\//, '');
-          $('login-status').textContent = 'Wachten tot je de code bevestigt…';
+          $('login-status').textContent = 'Waiting for you to confirm the code…';
           try { var q = window.qrcode(0, 'M'); q.addData(code.verificationUriComplete); q.make(); $('login-qr').innerHTML = q.createImgTag(6, 0); }
-          catch (e) { Debug.log('qr fout', String(e)); }
+          catch (e) { Debug.log('qr error', String(e)); }
         }, function (err) {
           if (err) {
             var m = String(err.message || err);
-            $('login-status').textContent = m === 'expired' ? 'Code verlopen — druk op OK voor een nieuwe code' : m === 'denied' ? 'Geweigerd — druk op OK om opnieuw te proberen' : 'Fout: ' + m + ' — OK = opnieuw';
+            $('login-status').textContent = m === 'expired' ? 'Code expired — press OK for a new code' : m === 'denied' ? 'Denied — press OK to try again' : 'Error: ' + m + ' — OK = retry';
             return;
           }
           UI.show('browse');
@@ -943,12 +963,12 @@
       enter: function () {
         var self = this;
         $('feeds-title').textContent = State.session.title + (State.session.sub ? ' — ' + State.session.sub : '');
-        $('feeds-status').textContent = 'Feeds laden…';
+        $('feeds-status').textContent = 'Loading feeds…';
         $('feeds-list').innerHTML = ''; this.els = []; this.idx = State.feedIndex || 0;
         Api.channels(State.session.id, function (err, feeds) {
-          if (err) { $('feeds-status').textContent = 'Kon feeds niet laden: ' + err.message; return; }
+          if (err) { $('feeds-status').textContent = 'Could not load feeds: ' + err.message; return; }
           State.feeds = feeds;
-          $('feeds-status').textContent = 'OK = afspelen · BACK = terug';
+          $('feeds-status').textContent = 'OK = play · BACK = back';
           var html = '';
           for (var i = 0; i < feeds.length; i++) {
             var f = feeds[i];
@@ -1051,18 +1071,18 @@
     if (!manual && lp.cookie) { // waarde van de 'login-session'-cookie van f1tv.formula1.com (URL-encoded JSON)
       var raw = String(lp.cookie);
       try { raw = decodeURIComponent(raw); } catch (e) {}
-      try { var cj = JSON.parse(raw); manual = cj && cj.data && cj.data.subscriptionToken; } catch (e2) { Debug.log('cookie parse fout', String(e2)); }
+      try { var cj = JSON.parse(raw); manual = cj && cj.data && cj.data.subscriptionToken; } catch (e2) { Debug.log('cookie parse error', String(e2)); }
     }
     if (manual) { // handmatige fallback: launch met params {"token": "<subscriptionToken>"} of {"cookie": "<login-session>"}
       var claims = decodeJwt(manual) || {};
       Auth.save({ refreshToken: null, accessExp: Date.now() + 3600000, subscriptionToken: manual, subExp: (claims.exp || 0) * 1000,
                   sessionId: claims.SessionId || null, profile: { firstName: claims.FirstName || '', lastName: claims.LastName || '', email: claims.Email || '', country: '', status: claims.SubscriptionStatus || '' } });
-      Debug.log('sessie via launch params; sub exp', claims.exp ? new Date(claims.exp * 1000).toISOString() : '?');
+      Debug.log('session via launch params; sub exp', claims.exp ? new Date(claims.exp * 1000).toISOString() : '?');
     }
     if (lp.logout) Auth.save(null);
     Auth.load();
     if (!Auth.session) return UI.show('login');
-    $('boot-msg').textContent = 'Sessie controleren…';
+    $('boot-msg').textContent = 'Checking session…';
     Auth.ensure(function (err) {
       if (err) { Debug.log('ensure', String(err)); return UI.show('login'); }
       UI.show('browse');

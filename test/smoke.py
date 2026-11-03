@@ -94,10 +94,12 @@ def handle(route, request):
                {"type": "obc", "playbackUrl": "CONTENT/PLAY?channelId=1030&contentId=3007", "driverFirstName": "Max", "driverLastName": "Verstappen", "teamName": "Red Bull Racing", "racingNumber": 1, "hex": "3671C6", "title": "Max Verstappen"}]
         return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "OK", "resultObj": {"containers": [{"metadata": {"additionalStreams": add}}]}}))
     if "CONTENT/PLAY" in url:
-        play_headers.append({k.lower(): v for k, v in request.headers.items()})
-        if "BIG_SCREEN_DASH" in url:
+        h = {k.lower(): v for k, v in request.headers.items()}
+        play_headers.append(h)
+        # only the website-style request (ascendontoken only, no entitlementtoken) on WEB_DASH succeeds in this fake
+        if "WEB_DASH" in url and "entitlementtoken" not in h:
             return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "OK", "resultObj": {"url": "https://cdn.example/stream.mpd?token=x", "streamType": "DASHWV", "drmType": "widevine", "laURL": "https://cdn.example/license", "entitlementToken": "ent1", "channelId": 1030}}))
-        return route.fulfill(status=404, headers=cors(), body=json.dumps({"resultCode": "KO", "errorDescription": "not found"}))
+        return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "KO", "errorDescription": "ACN_4004", "message": "No stream found for this content"}))
     if "image-resizer" in url:
         ph = os.path.join(os.path.dirname(__file__), "placeholders")
         name = "hero.png" if "w=1920" in url else "poster.png" if "w=244" in url else "thumb%d.png" % (sum(map(ord, url.split("?")[0][-12:])) % 8)
@@ -165,8 +167,9 @@ with sync_playwright() as p:
     check(page.is_visible("#scr-player"), "player screen shown")
     check(page.evaluate("window.__stubLoaded && window.__stubLoaded.url") == "https://cdn.example/stream.mpd?token=x", "shaka.load called with stream url")
     check(page.evaluate("window.__stubLoaded.licHeaders.ascendontoken") == SUB, "license request filter adds ascendontoken")
-    check(page.evaluate("window.__stubLoaded.licHeaders.entitlementtoken") == "ent1", "license request uses the entitlementToken from PLAY")
-    check(play_headers and play_headers[-1].get("entitlementtoken") == "sess-1" and play_headers[-1].get("ascendontoken") == SUB, "PLAY request sends session id as entitlementtoken: %s" % (play_headers[-1] if play_headers else None))
+    check("entitlementtoken" not in page.evaluate("window.__stubLoaded.licHeaders"), "license request mirrors the website-style headers of the winning variant")
+    check(len(play_headers) > 4 and "entitlementtoken" not in play_headers[-1] and play_headers[-1].get("ascendontoken") == SUB, "PLAY variants tried until the website-style one succeeded (%d requests)" % len(play_headers))
+    check(page.evaluate("JSON.parse(localStorage.getItem('f1tv.playCombo')).prov") == "WEB_DASH", "winning combination remembered")
     check(page.evaluate("() => document.querySelector('[data-sec=\"1\"]') && true"), "page still rendered")
     key(page, 461)
     page.wait_for_timeout(200)
