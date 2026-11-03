@@ -11,6 +11,8 @@
 # Settings (environment variables or ~/.config/f1tv-tv.conf):
 #   TV_HOST  the TV's IP address              (default 192.168.2.27)
 #   TV_KEY   the TV's SSH key (webos_rsa)     (default: ~/.ssh/webos_rsa, else ~/Downloads/webos_rsa)
+#   TV_PASS  the key's passphrase, as shown in the Developer Mode app. Used once to remove the passphrase
+#            from the private copy in ~/.ssh, so ssh never asks again. Keep it in the config file, not here.
 # If no key is found it is downloaded from the TV's Key Server (turn Key Server on in the Developer Mode app).
 set -euo pipefail
 
@@ -40,6 +42,13 @@ find_key() {
     mkdir -p "$HOME/.ssh"; cp "$TV_KEY" "$HOME/.ssh/webos_rsa"; TV_KEY="$HOME/.ssh/webos_rsa"
   fi
   chmod 600 "$TV_KEY"
+  # passphrase-protected key: strip the passphrase from our private copy once
+  if ! ssh-keygen -y -P "" -f "$TV_KEY" >/dev/null 2>&1; then
+    if [ -z "${TV_PASS:-}" ]; then read -r -s -p "Passphrase from the Developer Mode app: " TV_PASS; echo; fi
+    ssh-keygen -p -q -P "$TV_PASS" -N "" -f "$TV_KEY" >/dev/null 2>&1 \
+      || die "Wrong passphrase. Check it in the Developer Mode app (it changes when Dev Mode is reset)."
+    say "Key unlocked; ssh won't ask for the passphrase any more."
+  fi
 }
 
 tv_ssh() { ssh "${SSH_OPTS[@]}" -i "$TV_KEY" -p 9922 "prisoner@$TV_HOST" "$@"; }
