@@ -1,0 +1,42 @@
+# Builds the .ipk and publishes it as a GitHub release whenever a version tag (v0.2.3, v1.0.0, …) is pushed.
+# The release notes come from CHANGELOG.md: the section for that version.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag matches appinfo.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          app="$(python3 -c 'import json; print(json.load(open("src/appinfo.json"))["version"])')"
+          if [ "$tag" != "$app" ]; then echo "tag v$tag but appinfo.json says $app"; exit 1; fi
+
+      - name: Build the package
+        run: python3 build_ipk.py src out
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          python3 - "$GITHUB_REF_NAME" > notes.md <<'EOF'
+          import re, sys
+          tag = sys.argv[1].lstrip('v')
+          text = open('CHANGELOG.md', encoding='utf-8').read()
+          m = re.search(r'^## ' + re.escape(tag) + r'\b[^\n]*\n(.*?)(?=^## |\Z)', text, re.S | re.M)
+          body = m.group(1).strip() if m else 'See the commit history for this version.'
+          print(body)
+          print('\nInstall: download the `.ipk` below and follow the README. You need your own F1 TV subscription; this app is not affiliated with Formula 1.')
+          EOF
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" out/*.ipk --title "F1 TV for LG webOS ${GITHUB_REF_NAME#v}" --notes-file notes.md

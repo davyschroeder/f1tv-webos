@@ -95,6 +95,14 @@ Manual fallback when the pair page will not cooperate: sign in on f1tv.formula1.
 ./tv.sh launch '{"logout":true}'                         # clears the stored session
 ```
 
+## Releases
+
+A version tag triggers the release workflow (`.github/workflows/release.yml`): it checks that the tag matches `src/appinfo.json`, builds the `.ipk` with `build_ipk.py`, takes the notes for that version from `CHANGELOG.md` and publishes a GitHub release with the package attached.
+
+```
+git tag v0.2.3 && git push origin v0.2.3
+```
+
 ## Development
 
 - `src/` is the app: `appinfo.json`, `index.html`, `css/app.css`, `js/app.js` (one file, ES5), `lib/qrcode.js`.
