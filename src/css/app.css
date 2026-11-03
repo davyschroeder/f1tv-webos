@@ -146,3 +146,11 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .am-row .am-dot { width: 40px; color: #e10600; font-size: 22px; }
 .am-row.focus { background: #2a2a38; border-left-color: #e10600; }
 .am-help { padding: 14px 28px 0 28px; font-size: 20px; color: #9a9aa6; }
+
+/* Progress bar */
+.pbar-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-top: 18px; }
+.pstate { width: 40px; font-size: 26px; }
+.ptime { font-size: 24px; color: #d8d8e0; min-width: 110px; font-family: Menlo, Consolas, monospace; }
+#ptime-r { text-align: right; }
+.pbar { -webkit-flex: 1; flex: 1; height: 8px; background: rgba(255,255,255,0.25); border-radius: 4px; margin: 0 20px; overflow: hidden; }
+.pbar-fill { height: 100%; width: 0; background: #e10600; }

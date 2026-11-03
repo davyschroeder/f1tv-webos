@@ -104,6 +104,8 @@ def handle(route, request):
         ph = os.path.join(os.path.dirname(__file__), "placeholders")
         name = "hero.png" if "w=1920" in url else "poster.png" if "w=244" in url else "thumb%d.png" % (sum(map(ord, url.split("?")[0][-12:])) % 8)
         return route.fulfill(status=200, headers={"Content-Type": "image/png"}, body=open(os.path.join(ph, name), "rb").read())
+    if "mux.js" in url or "mux.min.js" in url:
+        return route.fulfill(status=200, headers={"Content-Type": "application/javascript"}, body="window.muxjs={stub:true};")
     if "shaka-player" in url:
         return route.fulfill(status=200, headers={"Content-Type": "application/javascript"}, body=open(os.path.join(os.path.dirname(__file__), "shaka_stub.js")).read())
     return route.fulfill(status=404, headers=cors(), body="{}")
@@ -165,6 +167,9 @@ with sync_playwright() as p:
     key(page, 40); key(page, 13)
     page.wait_for_timeout(1200)
     check(page.is_visible("#scr-player"), "player screen shown")
+    page.wait_for_timeout(600)
+    check(page.evaluate("!!window.muxjs"), "mux.js loaded before Shaka")
+    check(page.is_visible(".pbar") and page.inner_text("#ptime-r") in ("LIVE",), "progress bar visible (live stream shows LIVE)")
     check(page.evaluate("window.__stubLoaded && window.__stubLoaded.url") == "https://cdn.example/stream.mpd?token=x", "shaka.load called with stream url")
     check(page.evaluate("window.__stubLoaded.licHeaders.ascendontoken") == SUB, "license request filter adds ascendontoken")
     check("entitlementtoken" not in page.evaluate("window.__stubLoaded.licHeaders"), "license request mirrors the website-style headers of the winning variant")

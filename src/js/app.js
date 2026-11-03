@@ -19,8 +19,12 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.4;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.5;playerVersion=4.3.6',
     deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
+    muxUrls: [
+      'https://cdnjs.cloudflare.com/ajax/libs/mux.js/6.3.0/mux.min.js',
+      'https://cdn.jsdelivr.net/npm/mux.js@6.3.0/dist/mux.min.js'
+    ],
     shakaUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.min.js',
       'https://cdn.jsdelivr.net/npm/shaka-player@4.3.6/dist/shaka-player.compiled.min.js'
@@ -464,7 +468,9 @@
       if (this.loadingShaka) return cb(new Error('still loading'));
       this.loadingShaka = true;
       var urls = CFG.shakaUrls.slice();
-      (function tryNext() {
+      // mux.js first: Shaka uses window.muxjs to transmux MPEG-TS (older archive HLS), which this TV's MSE can't play
+      this.loadScripts(CFG.muxUrls.slice(), function (ok) { Debug.log('mux.js', ok ? 'loaded' : 'not loaded'); tryNext(); });
+      function tryNext() {
         var url = urls.shift();
         if (!url) { self.loadingShaka = false; return cb(new Error('Shaka Player could not be loaded (internet?)')); }
         var s = document.createElement('script');
@@ -473,7 +479,17 @@
         s.onload = function () { if (done) return; done = true; clearTimeout(t); self.loadingShaka = false; Debug.log('shaka loaded', url); cb(null); };
         s.onerror = function () { if (done) return; done = true; clearTimeout(t); Debug.log('shaka load error', url); tryNext(); };
         s.src = url; document.head.appendChild(s);
-      })();
+      }
+    },
+
+    loadScripts: function (urls, cb) {
+      var url = urls.shift();
+      if (!url) return cb(false);
+      var self = this, s = document.createElement('script'), done = false;
+      var t = setTimeout(function () { if (!done) { done = true; self.loadScripts(urls, cb); } }, 15000);
+      s.onload = function () { if (done) return; done = true; clearTimeout(t); cb(true); };
+      s.onerror = function () { if (done) return; done = true; clearTimeout(t); self.loadScripts(urls, cb); };
+      s.src = url; document.head.appendChild(s);
     },
 
     init: function () {
@@ -520,9 +536,37 @@
     msg: function (text) { var m = $('player-msg'); if (!text) { m.className = 'player-msg hidden'; return; } m.textContent = text; m.className = 'player-msg'; },
 
     showOverlay: function () {
+      var self = this;
       $('player-overlay').style.display = 'block';
+      this.updateBar();
       clearTimeout(this.overlayTimer);
-      this.overlayTimer = setTimeout(function () { $('player-overlay').style.display = 'none'; }, CFG.overlayMs);
+      if (!this.barTimer) this.barTimer = setInterval(function () { self.updateBar(); }, 500);
+      this.overlayTimer = setTimeout(function () {
+        if (self.video && self.video.paused && UI.current === 'player') return; // stay visible while paused
+        $('player-overlay').style.display = 'none';
+      }, CFG.overlayMs);
+    },
+
+    fmt: function (sec) {
+      sec = Math.max(0, Math.floor(sec || 0));
+      var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+      return (h ? h + ':' + (m < 10 ? '0' : '') : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    },
+
+    updateBar: function () {
+      if (!this.player || !this.video || $('player-overlay').style.display === 'none') return;
+      var r; try { r = this.player.seekRange(); } catch (e) { return; }
+      var len = Math.max(0, r.end - r.start), pos = Math.max(0, Math.min(len, this.video.currentTime - r.start));
+      $('pbar-fill').style.width = (len ? pos / len * 100 : 0) + '%';
+      if (this.live) {
+        var behind = len - pos;
+        $('ptime-l').textContent = behind < 15 ? 'LIVE' : '-' + this.fmt(behind);
+        $('ptime-r').textContent = 'LIVE';
+      } else {
+        $('ptime-l').textContent = this.fmt(pos);
+        $('ptime-r').textContent = this.fmt(len);
+      }
+      $('pstate').textContent = this.video.paused ? '❚❚' : '▶';
     },
 
     /* info = {title, sub, playbackUrl, back: 'browse'|'feeds'} */

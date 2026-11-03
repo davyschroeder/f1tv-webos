@@ -2,6 +2,11 @@
 
 Each `## <version>` section becomes the release notes of the GitHub release for that version tag.
 
+## 0.2.5 — 2026-11-03
+
+- Older archive videos (HLS with MPEG-TS segments) play: mux.js is loaded so Shaka converts them to MP4 for the TV
+- Progress bar in the player: play/pause state, elapsed and total time, or LIVE and time behind live; stays visible while paused
+
 ## 0.2.4 — 2026-11-03
 
 - Audio menu on the green button: pick the commentary by name (International (English), Nederlands, Deutsch, …, natural sound) instead of cycling language codes; the choice is remembered and applied to every stream
