@@ -3,7 +3,7 @@ Exercises login (device code) -> home (menu + page) -> weekend page (gp banner +
 import json, os, sys, time, base64
 from playwright.sync_api import sync_playwright
 
-SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+SRC = os.environ.get("F1TV_SRC") or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
 OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), "out"))
 os.makedirs(OUT, exist_ok=True)
 

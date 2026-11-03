@@ -1,4 +1,6 @@
 out/
+out-private/
+fonts/
 test/out/
 __pycache__/
 *.pyc
