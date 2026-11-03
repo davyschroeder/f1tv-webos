@@ -1,9 +1,6 @@
 /* F1 TV (onofficieel) voor webOS — 1920x1080, Chromium 53: flexbox + transforms, geen grid */
 /* Display font for logo, tabs and titles: Orbitron (SIL Open Font License, see fonts/OFL-Orbitron.txt), as static
-   regular/bold cuts because the TV's Chromium predates variable fonts. An optional fonts/f1-wide.ttf (not part of
-   the public build) takes precedence when present. */
-@font-face { font-family: 'F1Wide'; src: url('../fonts/f1-wide.ttf') format('truetype'); font-weight: normal; font-style: normal; }
-@font-face { font-family: 'F1Wide'; src: url('../fonts/f1-wide.ttf') format('truetype'); font-weight: bold; font-style: normal; }
+   regular/bold cuts because the TV's Chromium predates variable fonts. */
 @font-face { font-family: 'Orbitron'; src: url('../fonts/orbitron-regular.ttf') format('truetype'); font-weight: normal; font-style: normal; }
 @font-face { font-family: 'Orbitron'; src: url('../fonts/orbitron-bold.ttf') format('truetype'); font-weight: bold; font-style: normal; }
 html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hidden;
@@ -18,7 +15,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .key { display: inline-block; width: 26px; height: 26px; border-radius: 50%; vertical-align: middle; }
 .key.red { background: #e10600; } .key.green { background: #3ddc84; } .key.yellow { background: #f5b800; } .key.blue { background: #4da3ff; }
 
-.logo { font-size: 64px; font-weight: bold; margin-bottom: 30px; letter-spacing: 1px; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.logo { font-size: 64px; font-weight: bold; margin-bottom: 30px; letter-spacing: 1px; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .logo span { color: #e10600; }
 .logo small { font-size: 24px; color: #9a9aa6; font-weight: normal; margin-left: 16px; }
 .logo.small { font-size: 34px; margin: 0; }
@@ -29,7 +26,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .login-right { width: 360px; text-align: center; margin-left: 40px; }
 .step { font-size: 28px; margin: 10px 0 6px 0; color: #d8d8e0; }
 .login-url { font-size: 44px; font-weight: bold; color: #fff; margin-bottom: 24px; }
-.login-code { font-size: 80px; font-weight: bold; letter-spacing: 10px; color: #e10600; margin-bottom: 20px; font-family: 'F1Wide', 'Orbitron', Menlo, Consolas, monospace; }
+.login-code { font-size: 80px; font-weight: bold; letter-spacing: 10px; color: #e10600; margin-bottom: 20px; font-family: 'Orbitron', Menlo, Consolas, monospace; }
 .qr { width: 320px; height: 320px; background: #fff; padding: 12px; border-radius: 12px; margin: 0 auto 12px auto; }
 .qr img, .qr table { width: 296px !important; height: 296px !important; }
 
@@ -37,9 +34,9 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .topbar { position: absolute; left: 0; top: 0; width: 1920px; height: 120px; z-index: 5; padding: 0 70px;
   display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: space-between; justify-content: space-between;
   background: -webkit-linear-gradient(top, rgba(21,21,30,0.98) 60%, rgba(21,21,30,0)); background: linear-gradient(to bottom, rgba(21,21,30,0.98) 60%, rgba(21,21,30,0)); }
-.title { font-size: 36px; font-weight: bold; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.title { font-size: 36px; font-weight: bold; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .tabs { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
-.tab { padding: 10px 26px; margin: 0 6px; border-radius: 30px; font-size: 24px; font-weight: bold; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; color: #c8c8d2; border: 3px solid transparent; white-space: nowrap; }
+.tab { padding: 10px 20px; margin: 0 4px; border-radius: 30px; font-size: 22px; font-weight: bold; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; color: #c8c8d2; border: 3px solid transparent; white-space: nowrap; }
 .tab.active { color: #fff; border-bottom-color: #e10600; border-radius: 0; }
 .tab.focus { background: #fff; color: #15151e; border-color: #fff; border-radius: 30px; }
 .tab.live { color: #fff; background: #e10600; }
@@ -60,7 +57,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
   background: linear-gradient(to right, rgba(21,21,30,0.95) 0%, rgba(21,21,30,0.6) 40%, rgba(21,21,30,0) 70%), linear-gradient(to bottom, rgba(21,21,30,0.7), rgba(21,21,30,0) 30%, rgba(21,21,30,0) 70%, #15151e); }
 .hero-text { position: absolute; left: 70px; bottom: 120px; width: 900px; }
 .hero-label { font-size: 30px; color: #d8d8e0; margin-bottom: 10px; }
-.hero-title { font-size: 60px; font-weight: bold; line-height: 1.1; margin-bottom: 30px; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; text-shadow: 0 2px 20px rgba(0,0,0,0.6); }
+.hero-title { font-size: 54px; font-weight: bold; line-height: 1.1; margin-bottom: 30px; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; text-shadow: 0 2px 20px rgba(0,0,0,0.6); }
 .hero-btn { display: inline-block; background: #e10600; color: #fff; font-size: 30px; font-weight: bold; padding: 18px 44px; border-radius: 40px; border: 4px solid #e10600; }
 .hero-btn:before { content: "▶"; margin-right: 18px; font-size: 24px; }
 .hero-btn.focus { background: #fff; color: #e10600; border-color: #fff; }
@@ -73,14 +70,14 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .gp img { position: absolute; left: 0; top: 0; width: 1920px; height: 620px; object-fit: cover; opacity: 0.45; }
 .gp-shade { position: absolute; left: 0; top: 0; width: 1920px; height: 620px; background: -webkit-linear-gradient(top, rgba(21,21,30,0.6), rgba(21,21,30,0) 40%, #15151e); background: linear-gradient(to bottom, rgba(21,21,30,0.6), rgba(21,21,30,0) 40%, #15151e); }
 .gp-text { position: absolute; left: 0; width: 1920px; top: 170px; }
-.gp-name { font-size: 84px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.gp-name { font-size: 76px; font-weight: bold; letter-spacing: 0; text-transform: uppercase; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .gp-official { font-size: 34px; color: #e8e8ee; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px; }
 .gp-meta { font-size: 28px; color: #d8d8e0; margin-top: 26px; font-weight: bold; text-transform: uppercase; }
 .gp-meta b { color: #e10600; margin: 0 14px; }
 
 /* Rijen */
 .section { padding: 26px 0 10px 0; }
-.section-title { font-size: 30px; font-weight: bold; padding: 0 70px 18px 70px; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.section-title { font-size: 28px; font-weight: bold; padding: 0 70px 18px 70px; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .section-title .viewall { float: right; font-size: 24px; color: #9a9aa6; font-weight: normal; }
 .heading .section-title { font-size: 52px; padding-top: 30px; }
 .row-wrap { width: 1920px; overflow: hidden; padding: 6px 0 6px 70px; }
@@ -100,7 +97,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 /* Schema (weekend) */
 .schedule { display: -webkit-flex; display: flex; padding: 0 70px; }
 .day { min-width: 420px; margin-right: 30px; }
-.day-name { font-size: 22px; font-weight: bold; text-transform: uppercase; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; border-bottom: 3px solid #3a3a4a; padding-bottom: 10px; margin-bottom: 14px; letter-spacing: 1px; }
+.day-name { font-size: 22px; font-weight: bold; text-transform: uppercase; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; border-bottom: 3px solid #3a3a4a; padding-bottom: 10px; margin-bottom: 14px; letter-spacing: 1px; }
 .sess { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; width: 420px; height: 72px; margin-bottom: 12px; background: #1f1f2b; border-radius: 8px; border: 4px solid transparent; overflow: hidden; }
 .sess .tag { width: 64px; height: 100%; background: #6e0800; color: #fff; font-weight: bold; font-size: 22px; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; border-left: 4px solid #e10600; margin-right: 16px; -webkit-flex-shrink: 0; flex-shrink: 0; }
 .sess .stitle { -webkit-flex: 1; flex: 1; font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -127,7 +124,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 #video { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #000; }
 .player-overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 70px 50px 70px;
   background: -webkit-linear-gradient(top, rgba(0,0,0,0), rgba(0,0,0,0.85)); background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,0.85)); }
-.player-title { font-size: 34px; font-weight: bold; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.player-title { font-size: 34px; font-weight: bold; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .player-sub { font-size: 26px; color: #d8d8e0; margin-top: 6px; }
 .player-help { font-size: 22px; color: #9a9aa6; margin-top: 14px; }
 .player-help .key { width: 20px; height: 20px; }
@@ -141,7 +138,7 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 
 /* Audio menu */
 .audio-menu { position: absolute; right: 70px; bottom: 90px; min-width: 560px; background: rgba(20,20,30,0.96); border-radius: 14px; padding: 20px 0 14px 0; border: 2px solid #3a3a4a; }
-.am-title { font-size: 24px; font-weight: bold; color: #9a9aa6; padding: 0 28px 12px 28px; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.am-title { font-size: 24px; font-weight: bold; color: #9a9aa6; padding: 0 28px 12px 28px; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
 .am-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 14px 28px; font-size: 30px; border-left: 6px solid transparent; }
 .am-row .am-dot { width: 40px; color: #e10600; font-size: 22px; }
 .am-row.focus { background: #2a2a38; border-left-color: #e10600; }

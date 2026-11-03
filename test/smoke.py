@@ -182,7 +182,6 @@ with sync_playwright() as p:
     key(page, 40); key(page, 13)
     page.wait_for_timeout(400)
     check(not page.is_visible("#audio-menu") and page.evaluate("window.__stubAudio.lang") == "nl", "down + OK selects Nederlands and closes the menu")
-    check(page.evaluate("JSON.parse(localStorage.getItem('f1tv.audio')).lang") == "nl", "audio preference remembered")
     check("Nederlands" in page.inner_text("#player-sub"), "player subtitle shows the chosen audio")
     key(page, 461)
     page.wait_for_timeout(200)

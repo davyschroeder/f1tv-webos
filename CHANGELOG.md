@@ -2,6 +2,11 @@
 
 Each `## <version>` section becomes the release notes of the GitHub release for that version tag.
 
+## 0.2.7 — 2026-11-03
+
+- Every video starts on English (International) commentary; the green-button menu changes it for that video only
+- Narrower headings: Orbitron only, slightly smaller tabs and titles
+
 ## 0.2.6 — 2026-11-03
 
 - Always transmux MPEG-TS to MP4 (the TV reports TS support but then refuses it), fixing older archive videos

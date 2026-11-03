@@ -19,7 +19,7 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.6;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.7;playerVersion=4.3.6',
     deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
     muxUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/mux.js/6.3.0/mux.min.js',
@@ -583,6 +583,7 @@
         if (err) return self.msg(String(err.message || err));
         self.init();
         if (!info.retried) self.player.configure({ restrictions: { maxHeight: CFG.maxHeight, maxBandwidth: Infinity } });
+        self.player.configure({ preferredAudioLanguage: 'en' }); // English (International) commentary on every video
         Auth.ensure(function (err2, token) {
           if (err2) { self.msg('Session expired — go back and sign in again'); return; }
           Api.entitlement(info.playbackUrl, token, function (err3, ent) {
@@ -645,20 +646,21 @@
       $('player-sub').textContent = (this.lastInfo && this.lastInfo.sub || '') + (this.live ? ' · LIVE' : '') + this.audioLabel();
     },
 
-    /* Remembered audio choice (language + role), applied to every new stream when available. */
+    /* Always start on English (International) commentary; the green-button menu changes it for this video only. */
     applyPreferredAudio: function () {
-      var pref = Store.get('audio', null);
-      if (!pref) return;
-      var t = this.audioTracks();
-      for (var i = 0; i < t.length; i++) if (t[i].lang === pref.lang && (t[i].role || '') === (pref.role || '')) {
-        if (!t[i].active) { this.player.selectAudioLanguage(t[i].lang, t[i].role || undefined); Debug.log('audio pref ->', t[i].label); }
-        return;
+      var t = this.audioTracks(), i, best = null;
+      Debug.log('audio tracks', JSON.stringify(t.map(function (x) { return x.lang + (x.role ? '/' + x.role : '') + (x.label ? ' ' + x.label : ''); })));
+      for (i = 0; i < t.length; i++) {
+        var l = t[i].lang;
+        if ((l === 'en' || l === 'eng' || /^en-/.test(l)) && !/fx|natural|ambient/i.test(t[i].label || '')) { if (!best || t[i].role === 'main') best = t[i]; }
       }
+      if (!best) for (i = 0; i < t.length; i++) if (/international|english/i.test(t[i].label || '')) { best = t[i]; break; }
+      if (best && !best.active) { this.player.selectAudioLanguage(best.lang, best.role || undefined); Debug.log('audio -> English', best.lang, best.role); }
+      else if (!best) Debug.log('no English audio track found');
     },
 
     selectAudio: function (track) {
       this.player.selectAudioLanguage(track.lang, track.role || undefined);
-      Store.set('audio', { lang: track.lang, role: track.role || '' });
       Debug.log('audio ->', track.label);
       var self = this; setTimeout(function () { self.updateSub(); }, 300);
       this.updateSub();

@@ -76,7 +76,7 @@ The session is stored on the TV and refreshed automatically. The playback token 
 | browsing   | red             | jump to the live session (also the red LIVE tab) |
 | player     | OK / play/pause | pause / play |
 | player     | ◀ ▶             | 15 s back / forward |
-| player     | green           | audio menu: International (English), Nederlands, Deutsch, …, natural sound; the choice is remembered |
+| player     | green           | audio menu: International (English), Nederlands, Deutsch, …, natural sound; every video starts in English |
 | player     | red             | go to live |
 | everywhere | BACK            | back; on the home screen it closes the app |
 
@@ -109,7 +109,7 @@ git tag v0.2.3 && git push origin v0.2.3
 - `src/` is the app: `appinfo.json`, `index.html`, `css/app.css`, `js/app.js` (one file, ES5), `lib/qrcode.js`.
 - `python3 test/smoke.py` runs the whole flow in headless Chrome against faked F1 endpoints (sign-in, home, weekend page, schedule, feeds, player, remote keys) and writes screenshots to `test/out/`. It needs Playwright for Python and a Chrome binary.
 - The app icon is a generic placeholder; replace `src/icon.png` (80×80) and `src/largeIcon.png` (130×130) with your own before packaging.
-- Display font: the logo, tabs and titles use [Orbitron](https://github.com/theleagueof/orbitron) (SIL Open Font License, `src/fonts/OFL-Orbitron.txt`), bundled as static regular and bold cuts because the TV's Chromium predates variable fonts. If you own a different display typeface, drop it at `src/fonts/f1-wide.ttf` and it takes precedence; that file is deliberately not part of this repo.
+- Display font: the logo, tabs and titles use [Orbitron](https://github.com/theleagueof/orbitron) (SIL Open Font License, `src/fonts/OFL-Orbitron.txt`), bundled as static regular and bold cuts because the TV's Chromium predates variable fonts.
 - Known gaps: the personal "Continue Watching" row is skipped (different auth), there is no 4K/HEVC selection yet, and switching feeds while watching is not implemented.
 
 ## Thanks
