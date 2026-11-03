@@ -1,6 +1,6 @@
 out/
 out-private/
-fonts/
+src/fonts/f1-wide.ttf
 test/out/
 __pycache__/
 *.pyc
