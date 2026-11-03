@@ -7,6 +7,7 @@
 #   ./tv.sh launch [json]       start the app, optionally with launch params, e.g. '{"logout":true}'
 #   ./tv.sh close               close the app
 #   ./tv.sh ssh                 shell on the TV
+#   ./tv.sh version             which version is installed on the TV
 #
 # Settings (environment variables or ~/.config/f1tv-tv.conf):
 #   TV_HOST  the TV's IP address              (default 192.168.2.27)
@@ -72,7 +73,10 @@ install() {
 
   say "Installing…"
   local log; log="$(mktemp)"
-  tv_ssh "luna-send-pub -i -f 'luna://com.webos.appInstallService/dev/install' '{\"id\":\"$APP_ID\",\"ipkUrl\":\"/media/developer/temp/$name\",\"subscribe\":true}'" >"$log" 2>&1 &
+  # -tt: luna-send-pub only flushes its status lines to a terminal; </dev/null keeps the background job off our tty
+  ssh -tt "${SSH_OPTS[@]}" -i "$TV_KEY" -p 9922 "prisoner@$TV_HOST" \
+    "luna-send-pub -i -f 'luna://com.webos.appInstallService/dev/install' '{\"id\":\"$APP_ID\",\"ipkUrl\":\"/media/developer/temp/$name\",\"subscribe\":true}'" \
+    </dev/null >"$log" 2>&1 &
   local pid=$! state="" i
   for i in $(seq 1 120); do
     state="$(grep -o '"state": *"[^"]*"' "$log" | tail -1 | sed 's/.*: *"\(.*\)"/\1/')" || true
@@ -85,12 +89,26 @@ install() {
   done
   kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true
   if [ "$state" != "installed" ]; then
-    tail -20 "$log"; rm -f "$log"; die "Install did not finish (last state: ${state:-none})."
+    # no status lines seen: ask the TV which version is installed now
+    local want have
+    want="$(echo "$name" | sed 's/.*_\([0-9][0-9.]*\)_all\.ipk/\1/')"
+    have="$(installed_version)"
+    if [ -n "$have" ] && [ "$have" = "$want" ]; then
+      state="installed"
+    else
+      tail -20 "$log"; rm -f "$log"
+      die "Install did not finish (last state: ${state:-none}; version on the TV: ${have:-unknown}, wanted $want)."
+    fi
   fi
   rm -f "$log"
   tv_ssh "rm -f '/media/developer/temp/$name'" || true
   say "Installed $name."
   launch
+}
+
+installed_version() {
+  tv_ssh "luna-send-pub -n 1 -f 'luna://com.webos.applicationManager/getAppInfo' '{\"id\":\"$APP_ID\"}'" </dev/null 2>/dev/null \
+    | tr -d '\r' | grep -o '"version": *"[^"]*"' | head -1 | sed 's/.*: *"\(.*\)"/\1/' || true
 }
 
 launch() {
@@ -106,6 +124,7 @@ case "${1:-}" in
   launch) launch "${2:-}" ;;
   close) find_key; tv_ssh "luna-send-pub -n 1 -f 'luna://com.webos.applicationManager/close' '{\"id\":\"$APP_ID\"}'" >/dev/null ;;
   ssh) find_key; tv_ssh ;;
+  version) find_key; echo "On the TV: $(installed_version)" ;;
   *.ipk) install "$1" ;;
   *) sed -n '2,15p' "$0"; exit 1 ;;
 esac
