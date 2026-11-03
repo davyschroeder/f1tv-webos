@@ -57,6 +57,13 @@ ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -i webos_
 
 The second command keeps printing status until it says `"state": "installed"`; press Ctrl-C after that. The app then appears in the TV's app list as **F1 TV**.
 
+**Easiest: the `tv.sh` script** does all of the above in one go. It finds the key (`~/.ssh/webos_rsa` or `~/Downloads/webos_rsa`, or fetches it from the TV's Key Server), picks the newest `.ipk` from `~/Downloads`, installs it, stops by itself once the TV reports `installed`, and starts the app:
+
+```
+curl -fsSLo ~/tv.sh https://raw.githubusercontent.com/davyschroeder/f1tv-webos/main/tv.sh && chmod +x ~/tv.sh
+TV_HOST=<tv-ip> ~/tv.sh            # or put TV_HOST=<tv-ip> in ~/.config/f1tv-tv.conf once
+```
+
 ## 4. Sign in
 
 Start the app. It shows a short code and a QR code. On your phone or computer, go to the address shown (f1tv.com/pair), sign in with your F1 TV account and enter the code; the TV picks it up by itself. This is the same device-code flow the official TV apps use, so no password is ever typed on the TV.
