@@ -45,7 +45,7 @@ ares-install -d myTV nl.davyschroeder.f1tv_0.2.0_all.ipk
 ares-launch  -d myTV nl.davyschroeder.f1tv
 ```
 
-**Without the CLI**, with plain `scp` and `ssh`. The TV's SSH key can be downloaded from `http://<tv-ip>:9991/webos_rsa` while Key Server is on; the `tv.sh` helper in this repo wraps the commands below (`./tv.sh install <ipk>`, `./tv.sh launch`):
+**Without the CLI**, with plain `scp` and `ssh`. The TV's SSH key can be downloaded from `http://<tv-ip>:9991/webos_rsa` while Key Server is on:
 
 ```
 scp -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -i webos_rsa -P 9922 \
@@ -57,12 +57,6 @@ ssh -o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedAlgorithms=+ssh-rsa -i webos_
 
 The second command keeps printing status until it says `"state": "installed"`; press Ctrl-C after that. The app then appears in the TV's app list as **F1 TV**.
 
-**Easiest: the `tv.sh` script** does all of the above in one go. It finds the key (`~/.ssh/webos_rsa` or `~/Downloads/webos_rsa`, or fetches it from the TV's Key Server), picks the newest `.ipk` from `~/Downloads`, installs it, stops by itself once the TV reports `installed`, and starts the app:
-
-```
-curl -fsSLo ~/tv.sh https://raw.githubusercontent.com/davyschroeder/f1tv-webos/main/tv.sh && chmod +x ~/tv.sh
-TV_HOST=<tv-ip> ~/tv.sh            # or put TV_HOST=<tv-ip> in ~/.config/f1tv-tv.conf once
-```
 
 ## 4. Sign in
 
@@ -98,8 +92,8 @@ The Magic Remote pointer works too (point = focus, click = OK).
 Manual fallback when the pair page will not cooperate: sign in on f1tv.formula1.com in a browser, copy the value of the `login-session` cookie (DevTools → Application → Cookies) and launch the app with it once:
 
 ```
-./tv.sh launch '{"cookie":"<login-session value>"}'      # or: ares-launch -d myTV nl.davyschroeder.f1tv --params '{"cookie":"…"}'
-./tv.sh launch '{"logout":true}'                         # clears the stored session
+ares-launch -d myTV nl.davyschroeder.f1tv --params '{"cookie":"<login-session value>"}'
+ares-launch -d myTV nl.davyschroeder.f1tv --params '{"logout":true}'   # clears the stored session
 ```
 
 ## Releases
