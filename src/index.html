@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>F1 TV</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- Laadscherm -->
+<div id="scr-boot" class="screen">
+  <div class="center">
+    <div class="logo"><span>F1</span> TV <small>onofficieel · webOS</small></div>
+    <div id="boot-msg" class="muted">Starten…</div>
+  </div>
+</div>
+
+<!-- Inloggen via code -->
+<div id="scr-login" class="screen hidden">
+  <div class="center">
+    <div class="logo"><span>F1</span> TV</div>
+    <div class="login-box">
+      <div class="login-left">
+        <div class="step">1. Ga op je telefoon of laptop naar</div>
+        <div id="login-url" class="login-url">…</div>
+        <div class="step">2. Log in met je F1 TV-account en voer deze code in</div>
+        <div id="login-code" class="login-code">…</div>
+        <div id="login-status" class="muted">Code ophalen…</div>
+        <div id="login-full" class="muted small" style="margin-top:14px"></div>
+        <div class="muted small" style="margin-top:14px">Tip: log eerst in op f1tv.formula1.com in een gewone browser (geen incognito, geen adblocker), open daarna de pair-pagina.</div>
+      </div>
+      <div class="login-right">
+        <div id="login-qr" class="qr"></div>
+        <div class="muted small">Of scan de QR-code</div>
+      </div>
+    </div>
+    <div class="muted small">OK = nieuwe code · BACK = afsluiten</div>
+  </div>
+</div>
+
+<!-- Bladeren: tabs + generieke pagina (hero, rijen, weekend-banner, schema) -->
+<div id="scr-browse" class="screen hidden">
+  <div class="topbar">
+    <div class="logo small"><span>F1</span> TV</div>
+    <div id="tabs" class="tabs"></div>
+    <div id="browse-user" class="muted small"></div>
+  </div>
+  <div id="page-status" class="page-status hidden"></div>
+  <div id="page-viewport" class="page-viewport"><div id="page" class="page"></div></div>
+</div>
+
+<!-- Feeds / camera's van een sessie -->
+<div id="scr-feeds" class="screen hidden">
+  <div class="topbar">
+    <div id="feeds-title" class="title">…</div>
+  </div>
+  <div id="feeds-status" class="status"></div>
+  <div id="feeds-list" class="list two-col"></div>
+</div>
+
+<!-- Speler -->
+<div id="scr-player" class="screen hidden">
+  <video id="video" autoplay></video>
+  <div id="player-overlay" class="player-overlay">
+    <div id="player-title" class="player-title">…</div>
+    <div id="player-sub" class="player-sub">…</div>
+    <div class="player-help">OK = pauze/afspelen · ◀ ▶ = 15 s · <span class="key green"></span> audiotaal · <span class="key red"></span> live · BACK = stop</div>
+  </div>
+  <div id="player-msg" class="player-msg hidden"></div>
+</div>
+
+<!-- Debug-log (gele knop) -->
+<div id="debug" class="debug hidden"><pre id="debug-pre"></pre></div>
+
+<script src="lib/qrcode.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

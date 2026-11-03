@@ -1,0 +1,14 @@
+{
+  "id": "nl.davyschroeder.f1tv",
+  "version": "0.2.0",
+  "vendor": "Davy Schroëder",
+  "type": "web",
+  "main": "index.html",
+  "title": "F1 TV",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#15151e",
+  "iconColor": "#e10600",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true
+}
