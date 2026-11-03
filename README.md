@@ -75,7 +75,7 @@ The session is stored on the TV and refreshed automatically. The playback token 
 | browsing   | red             | jump to the live session (also the red LIVE tab) |
 | player     | OK / play/pause | pause / play |
 | player     | ◀ ▶             | 15 s back / forward |
-| player     | green           | next audio language (for example Dutch commentary) |
+| player     | green           | audio menu: International (English), Nederlands, Deutsch, …, natural sound; the choice is remembered |
 | player     | red             | go to live |
 | everywhere | BACK            | back; on the home screen it closes the app |
 

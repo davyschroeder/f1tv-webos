@@ -2,6 +2,10 @@
 
 Each `## <version>` section becomes the release notes of the GitHub release for that version tag.
 
+## 0.2.4 — 2026-11-03
+
+- Audio menu on the green button: pick the commentary by name (International (English), Nederlands, Deutsch, …, natural sound) instead of cycling language codes; the choice is remembered and applied to every stream
+
 ## 0.2.3 — 2026-11-03
 
 - Orbitron display font (SIL Open Font License) for the logo, tabs and titles, bundled as static regular/bold cuts

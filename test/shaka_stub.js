@@ -17,9 +17,13 @@
     return Promise.resolve();
   };
   Player.prototype.isLive = function () { return true; };
-  Player.prototype.getAudioLanguages = function () { return ['en', 'nl']; };
-  Player.prototype.getVariantTracks = function () { return [{ active: true, language: 'en' }]; };
-  Player.prototype.selectAudioLanguage = function () {};
+  Player.prototype.getAudioLanguages = function () { return ['en', 'nl', 'und']; };
+  Player.prototype.getVariantTracks = function () {
+    var cur = this.audio || 'en';
+    return [{ active: cur === 'en', language: 'en', audioRoles: ['main'], label: '', height: 1080 }, { active: cur === 'en', language: 'en', audioRoles: ['main'], label: '', height: 720 },
+            { active: cur === 'nl', language: 'nl', audioRoles: ['main'], label: 'Nederlands', height: 1080 }, { active: cur === 'und', language: 'und', audioRoles: ['alternate'], label: 'F1 FX', height: 1080 }];
+  };
+  Player.prototype.selectAudioLanguage = function (l, role) { this.audio = l; window.__stubAudio = { lang: l, role: role }; };
   Player.prototype.seekRange = function () { return { start: 0, end: 100 }; };
   Player.prototype.unload = function () { return Promise.resolve(); };
   window.shaka = { Player: Player, polyfill: { installAll: function () {} }, net: { NetworkingEngine: NetEngine } };

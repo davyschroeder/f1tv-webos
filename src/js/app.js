@@ -19,7 +19,7 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.3;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.4;playerVersion=4.3.6',
     deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
     shakaUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.6/shaka-player.compiled.min.js',
@@ -552,7 +552,8 @@
             self.player.load(ent.url, null, mime).then(function () {
               self.live = self.player.isLive();
               Debug.log('loaded; live', self.live, 'audio', JSON.stringify(self.player.getAudioLanguages()));
-              $('player-sub').textContent = (info.sub || '') + (self.live ? ' · LIVE' : '') + self.audioLabel();
+              self.applyPreferredAudio();
+              self.updateSub();
               self.msg(null);
               var p = self.video.play(); if (p && p.catch) p.catch(function () {});
             }, function (e) { self.onError(e); });
@@ -563,15 +564,101 @@
 
     stop: function () {
       this.msg(null);
+      if (this.menuOpen) this.closeAudioMenu();
       if (this.player) { try { this.player.unload(); } catch (e) {} }
       try { this.video.pause(); } catch (e) {}
       this.ent = null;
     },
 
-    audioLabel: function () {
-      try { var t = this.player.getVariantTracks(); for (var i = 0; i < t.length; i++) if (t[i].active && t[i].language) return ' · audio ' + t[i].language; } catch (e) {}
-      return '';
+    /* ---------- audio tracks ---------- */
+    LANG_NAMES: { en: 'International (English)', eng: 'International (English)', de: 'Deutsch', deu: 'Deutsch', fr: 'Français', fra: 'Français',
+                  es: 'Español', spa: 'Español', pt: 'Português', por: 'Português', nl: 'Nederlands', nld: 'Nederlands', it: 'Italiano', ita: 'Italiano',
+                  ja: '日本語', jpn: '日本語', fx: 'Natural sound (no commentary)', und: 'Natural sound (no commentary)', mul: 'Natural sound (no commentary)' },
+
+    audioTracks: function () {
+      var out = [], seen = {};
+      try {
+        var t = this.player.getVariantTracks();
+        for (var i = 0; i < t.length; i++) {
+          var v = t[i], lang = (v.language || 'und').toLowerCase(), role = (v.audioRoles && v.audioRoles[0]) || '';
+          var key = lang + '|' + role + '|' + (v.label || '');
+          if (seen[key]) { if (v.active) seen[key].active = true; continue; }
+          var label = v.label || this.LANG_NAMES[lang] || this.LANG_NAMES[lang.slice(0, 2)] || lang;
+          if (/\bfx\b|natural|ambient/i.test(v.label || '')) label = v.label + ' (no commentary)';
+          seen[key] = { lang: lang, role: role, label: label, active: !!v.active };
+          out.push(seen[key]);
+        }
+      } catch (e) {}
+      return out;
     },
+
+    currentAudio: function () { var t = this.audioTracks(); for (var i = 0; i < t.length; i++) if (t[i].active) return t[i]; return null; },
+
+    audioLabel: function () { var a = this.currentAudio(); return a ? ' · ' + a.label : ''; },
+
+    updateSub: function () {
+      $('player-sub').textContent = (this.lastInfo && this.lastInfo.sub || '') + (this.live ? ' · LIVE' : '') + this.audioLabel();
+    },
+
+    /* Remembered audio choice (language + role), applied to every new stream when available. */
+    applyPreferredAudio: function () {
+      var pref = Store.get('audio', null);
+      if (!pref) return;
+      var t = this.audioTracks();
+      for (var i = 0; i < t.length; i++) if (t[i].lang === pref.lang && (t[i].role || '') === (pref.role || '')) {
+        if (!t[i].active) { this.player.selectAudioLanguage(t[i].lang, t[i].role || undefined); Debug.log('audio pref ->', t[i].label); }
+        return;
+      }
+    },
+
+    selectAudio: function (track) {
+      this.player.selectAudioLanguage(track.lang, track.role || undefined);
+      Store.set('audio', { lang: track.lang, role: track.role || '' });
+      Debug.log('audio ->', track.label);
+      var self = this; setTimeout(function () { self.updateSub(); }, 300);
+      this.updateSub();
+    },
+
+    /* audio menu (green button) */
+    menuOpen: false, menuIdx: 0, menuTracks: [],
+    openAudioMenu: function () {
+      if (!this.player) return;
+      var self = this;
+      this.menuTracks = this.audioTracks();
+      if (!this.menuTracks.length) { this.msg('No audio tracks yet'); setTimeout(function () { self.msg(null); }, 1500); return; }
+      this.menuIdx = 0;
+      for (var i = 0; i < this.menuTracks.length; i++) if (this.menuTracks[i].active) this.menuIdx = i;
+      this.menuOpen = true;
+      this.renderAudioMenu();
+      $('audio-menu').className = 'audio-menu';
+      $('player-overlay').style.display = 'none';
+    },
+    renderAudioMenu: function () {
+      var self = this, html = '';
+      for (var i = 0; i < this.menuTracks.length; i++) {
+        var t = this.menuTracks[i];
+        html += '<div class="am-row' + (i === this.menuIdx ? ' focus' : '') + '" data-i="' + i + '"><span class="am-dot">' + (t.active ? '●' : '') + '</span>' + esc(t.label) + '</div>';
+      }
+      $('audio-list').innerHTML = html;
+      var rows = $('audio-list').querySelectorAll('.am-row');
+      for (i = 0; i < rows.length; i++) (function (el, idx) {
+        el.onmouseover = function () { self.menuIdx = idx; self.renderAudioMenu(); };
+        el.onclick = function () { self.menuIdx = idx; self.menuChoose(); };
+      })(rows[i], i);
+    },
+    closeAudioMenu: function () { this.menuOpen = false; $('audio-menu').className = 'audio-menu hidden'; this.showOverlay(); },
+    menuMove: function (d) { this.menuIdx = Math.max(0, Math.min(this.menuTracks.length - 1, this.menuIdx + d)); this.renderAudioMenu(); },
+    menuChoose: function () { var t = this.menuTracks[this.menuIdx]; if (t) this.selectAudio(t); this.closeAudioMenu(); },
+    menuKey: function (k) {
+      switch (k) {
+        case KEY.UP: this.menuMove(-1); return true;
+        case KEY.DOWN: this.menuMove(1); return true;
+        case KEY.OK: this.menuChoose(); return true;
+        case KEY.BACK: case KEY.GREEN: this.closeAudioMenu(); return true;
+      }
+      return true; // other keys do nothing while the menu is open
+    },
+
     togglePause: function () {
       if (!this.video) return;
       if (this.video.paused) { var p = this.video.play(); if (p && p.catch) p.catch(function () {}); } else this.video.pause();
@@ -582,19 +669,7 @@
       var r = this.player.seekRange();
       this.video.currentTime = Math.max(r.start, Math.min(r.end, this.video.currentTime + delta)); this.showOverlay();
     },
-    goLive: function () { if (!this.player) return; try { this.video.currentTime = this.player.seekRange().end; } catch (e) {} this.showOverlay(); },
-    cycleAudio: function () {
-      if (!this.player) return;
-      var self = this, langs = this.player.getAudioLanguages();
-      if (!langs || langs.length < 2) { this.msg('Only one audio language'); setTimeout(function () { self.msg(null); }, 1500); return; }
-      var cur = '', t = this.player.getVariantTracks();
-      for (var i = 0; i < t.length; i++) if (t[i].active) cur = t[i].language;
-      var next = langs[(langs.indexOf(cur) + 1) % langs.length];
-      this.player.selectAudioLanguage(next);
-      Debug.log('audio ->', next);
-      $('player-sub').textContent = $('player-sub').textContent.replace(/ · audio .*$/, '') + ' · audio ' + next;
-      this.showOverlay();
-    }
+    goLive: function () { if (!this.player) return; try { this.video.currentTime = this.player.seekRange().end; } catch (e) {} this.showOverlay(); }
   };
 
   /* ======================================================================
@@ -1018,13 +1093,14 @@
     player: {
       enter: function () {},
       key: function (k) {
+        if (Player.menuOpen) return Player.menuKey(k);
         switch (k) {
           case KEY.BACK: case KEY.STOP: Player.stop(); UI.show(Player.back === 'feeds' ? 'feeds' : 'browse'); return true;
           case KEY.OK: case KEY.PLAY: case KEY.PAUSE: Player.togglePause(); return true;
           case KEY.LEFT: case KEY.RW: Player.seek(-CFG.seekStep); return true;
           case KEY.RIGHT: case KEY.FF: Player.seek(CFG.seekStep); return true;
           case KEY.RED: Player.goLive(); return true;
-          case KEY.GREEN: Player.cycleAudio(); return true;
+          case KEY.GREEN: Player.openAudioMenu(); return true;
           case KEY.UP: case KEY.DOWN: Player.showOverlay(); return true;
         }
         return false;

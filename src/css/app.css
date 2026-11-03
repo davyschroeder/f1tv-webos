@@ -138,3 +138,11 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .debug { position: absolute; right: 20px; top: 20px; width: 900px; max-height: 1000px; overflow: hidden;
   background: rgba(0,0,0,0.85); border: 2px solid #f5b800; border-radius: 10px; padding: 14px; z-index: 50; }
 .debug pre { margin: 0; font-family: Menlo, Consolas, monospace; font-size: 18px; color: #d8d8e0; white-space: pre-wrap; word-break: break-all; }
+
+/* Audio menu */
+.audio-menu { position: absolute; right: 70px; bottom: 90px; min-width: 560px; background: rgba(20,20,30,0.96); border-radius: 14px; padding: 20px 0 14px 0; border: 2px solid #3a3a4a; }
+.am-title { font-size: 24px; font-weight: bold; color: #9a9aa6; padding: 0 28px 12px 28px; font-family: 'F1Wide', 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.am-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 14px 28px; font-size: 30px; border-left: 6px solid transparent; }
+.am-row .am-dot { width: 40px; color: #e10600; font-size: 22px; }
+.am-row.focus { background: #2a2a38; border-left-color: #e10600; }
+.am-help { padding: 14px 28px 0 28px; font-size: 20px; color: #9a9aa6; }
