@@ -19,7 +19,7 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.5;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.6;playerVersion=4.3.6',
     deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
     muxUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/mux.js/6.3.0/mux.min.js',
@@ -507,7 +507,7 @@
         }
       });
       this.player.configure({
-        streaming: { bufferingGoal: 20, rebufferingGoal: 3, retryParameters: { maxAttempts: 4 } },
+        streaming: { bufferingGoal: 20, rebufferingGoal: 3, retryParameters: { maxAttempts: 4 }, forceTransmux: true }, // always turn MPEG-TS into MP4: the TV claims TS support but addSourceBuffer then fails
         manifest: { retryParameters: { maxAttempts: 4 } },
         abr: { enabled: true },
         preferredVideoCodecs: ['avc1'],      // no HEVC/4K variants: encrypted HEVC through MSE fails on these TVs
@@ -592,7 +592,8 @@
             if (ent.laURL) { if (ent.drmType.indexOf('playready') >= 0) drm.servers['com.microsoft.playready'] = ent.laURL; else drm.servers['com.widevine.alpha'] = ent.laURL; }
             self.player.configure({ drm: drm });
             var mime = ent.isDash ? 'application/dash+xml' : (ent.isHls ? 'application/x-mpegURL' : undefined);
-            Debug.log('load', mime, ent.laURL ? 'drm ' + (ent.drmType || 'widevine?') : 'no drm');
+            Debug.log('load', mime, ent.laURL ? 'drm ' + (ent.drmType || 'widevine?') : 'no drm', 'muxjs', !!window.muxjs);
+            if (!window.muxjs) Debug.log('WARNING: mux.js missing, MPEG-TS videos will fail');
             self.player.load(ent.url, null, mime).then(function () {
               self.live = self.player.isLive();
               Debug.log('loaded; live', self.live, 'audio', JSON.stringify(self.player.getAudioLanguages()));

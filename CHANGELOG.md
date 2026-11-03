@@ -2,6 +2,10 @@
 
 Each `## <version>` section becomes the release notes of the GitHub release for that version tag.
 
+## 0.2.6 — 2026-11-03
+
+- Always transmux MPEG-TS to MP4 (the TV reports TS support but then refuses it), fixing older archive videos
+
 ## 0.2.5 — 2026-11-03
 
 - Older archive videos (HLS with MPEG-TS segments) play: mux.js is loaded so Shaka converts them to MP4 for the TV
