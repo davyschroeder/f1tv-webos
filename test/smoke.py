@@ -90,8 +90,10 @@ def handle(route, request):
     if "/PAGE/" in url:
         return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "OK", "resultObj": {"containers": [section("horizontal_thumbnail", "Episodes", [video("Ep 1", 7001), video("Ep 2", 7002)])]}}))
     if "CONTENT/VIDEO/" in url:
-        add = [{"title": "Pit Lane", "type": "additional", "playbackUrl": "CONTENT/PLAY?channelId=1022&contentId=3007"},
-               {"type": "obc", "playbackUrl": "CONTENT/PLAY?channelId=1030&contentId=3007", "driverFirstName": "Max", "driverLastName": "Verstappen", "teamName": "Red Bull Racing", "racingNumber": 1, "hex": "3671C6", "title": "Max Verstappen"}]
+        add = [{"title": "PIT LANE", "type": "additional", "playbackUrl": "CONTENT/PLAY?channelId=1022&contentId=3007"},
+               {"title": "TRACKER", "type": "additional", "playbackUrl": "CONTENT/PLAY?channelId=1023&contentId=3007"},
+               {"type": "obc", "playbackUrl": "CONTENT/PLAY?channelId=1030&contentId=3007", "driverFirstName": "Max", "driverLastName": "Verstappen", "teamName": "Red Bull Racing", "racingNumber": 1, "hex": "3671C6", "title": "Max Verstappen"},
+               {"type": "obc", "playbackUrl": "CONTENT/PLAY?channelId=1031&contentId=3007", "driverFirstName": "Lewis", "driverLastName": "Hamilton", "teamName": "Ferrari", "racingNumber": 44, "hex": "E8002D", "title": "Lewis Hamilton"}]
         return route.fulfill(status=200, headers=cors(), body=json.dumps({"resultCode": "OK", "resultObj": {"containers": [{"metadata": {"additionalStreams": add}}]}}))
     if "CONTENT/PLAY" in url:
         h = {k.lower(): v for k, v in request.headers.items()}
@@ -163,13 +165,14 @@ with sync_playwright() as p:
     key(page, 13)
     page.wait_for_timeout(500)
     check(page.is_visible("#scr-feeds"), "session opens feeds screen")
-    check(page.locator("#feeds-list .lrow").count() == 3, "main + 2 feeds rendered")
+    check(page.locator("#feeds-list .lrow").count() == 5, "main + 4 feeds rendered")
+    page.evaluate("window.__stubLive = false")  # play this one as a replay so feed switching keeps the position
     key(page, 40); key(page, 13)
     page.wait_for_timeout(1200)
     check(page.is_visible("#scr-player"), "player screen shown")
     page.wait_for_timeout(600)
     check(page.evaluate("!!window.muxjs"), "mux.js loaded before Shaka")
-    check(page.is_visible(".pbar") and page.inner_text("#ptime-r") in ("LIVE",), "progress bar visible (live stream shows LIVE)")
+    check(page.is_visible(".pbar") and page.inner_text("#ptime-r") == "1:40", "progress bar visible with total time")
     check(page.evaluate("window.__stubLoaded && window.__stubLoaded.url") == "https://cdn.example/stream.mpd?token=x", "shaka.load called with stream url")
     check(page.evaluate("window.__stubLoaded.licHeaders.ascendontoken") == SUB, "license request filter adds ascendontoken")
     check("entitlementtoken" not in page.evaluate("window.__stubLoaded.licHeaders"), "license request mirrors the website-style headers of the winning variant")
@@ -193,6 +196,31 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
     check(not page.is_visible("#audio-menu") and page.evaluate("window.__stubAudio.lang") == "nl", "down + OK selects Nederlands and closes the menu")
     check("Nederlands" in page.inner_text("#player-sub"), "player subtitle shows the chosen audio")
+
+    def last_play():
+        return [l for l in log if "CONTENT/PLAY" in l][-1]
+    page.mouse.move(900, 900); page.wait_for_timeout(300)
+    check(page.is_visible("#ponboard") and page.is_visible("#pdata"), "helmet and tracker/data buttons shown for a session with feeds")
+    page.click("#ponboard"); page.wait_for_timeout(200)
+    check(page.inner_text("#am-title") == "Onboard cameras" and page.locator("#audio-list .am-row").count() == 3, "helmet opens the onboard grid (International + 2 drivers)")
+    page.screenshot(path=os.path.join(OUT, "7-onboards.png"))
+    pos = page.evaluate("document.getElementById('video').currentTime")
+    page.click("#audio-list .am-row:has-text('Lewis')"); page.wait_for_timeout(900)
+    check("channelId=1031" in last_play() and "Lewis Hamilton" in page.inner_text("#player-title"), "choosing Lewis switches to his onboard")
+    check(abs((page.evaluate("window.__stubLoaded.start") or 0) - pos) < 1, "replay continues at the same moment after switching (%s)" % page.evaluate("window.__stubLoaded.start"))
+    page.mouse.move(1919, 5)
+    key(page, 49); page.wait_for_timeout(1300)
+    check("channelId=1030" in last_play() and "Max Verstappen" in page.inner_text("#player-title"), "typing car number 1 jumps to Max's onboard")
+    key(page, 38); key(page, 39); key(page, 13); page.wait_for_timeout(200)
+    check(page.inner_text("#am-title") == "Tracker & data", "▲ ▶ OK opens the tracker & data menu")
+    txt = page.inner_text("#audio-list")
+    check("Tracker" in txt and "Live driver tracker map" in txt and "Pit Lane" in txt and "International" in txt, "tracker/data menu lists International, Pit Lane and Tracker with descriptions")
+    page.screenshot(path=os.path.join(OUT, "8-data.png"))
+    key(page, 40); key(page, 40); key(page, 13); page.wait_for_timeout(900)
+    check("channelId=1023" in last_play(), "choosing Tracker switches to the tracker feed")
+    key(page, 406); page.wait_for_timeout(200)
+    check(page.inner_text("#am-title") == "Onboard cameras", "blue button opens the onboards")
+    key(page, 461); page.wait_for_timeout(100)
     key(page, 461)
     page.wait_for_timeout(200)
     check(page.is_visible("#scr-feeds"), "back from player returns to feeds")

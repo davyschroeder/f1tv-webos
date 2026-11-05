@@ -13,10 +13,10 @@
   Player.prototype.load = function (url, start, mime) {
     var req = { headers: {} };
     for (var i = 0; i < filters.length; i++) filters[i](NetEngine.RequestType.LICENSE, req);
-    window.__stubLoaded = { url: url, mime: mime, drm: this.cfg.drm && this.cfg.drm.servers['com.widevine.alpha'], licHeaders: req.headers };
+    window.__stubLoaded = { url: url, start: start, mime: mime, drm: this.cfg.drm && this.cfg.drm.servers['com.widevine.alpha'], licHeaders: req.headers };
     return Promise.resolve();
   };
-  Player.prototype.isLive = function () { return true; };
+  Player.prototype.isLive = function () { return window.__stubLive !== false; };
   Player.prototype.getAudioLanguages = function () { return ['en', 'nl', 'und']; };
   Player.prototype.getVariantTracks = function () {
     var cur = this.audio || 'en';

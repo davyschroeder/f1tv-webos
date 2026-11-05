@@ -2,6 +2,14 @@
 
 Each `## <version>` section becomes the release notes of the GitHub release for that version tag.
 
+## 0.2.9 — 2026-11-05
+
+- Helmet button in the player: grid of all onboard cameras with car number, team colour and team; the International feed is in it too
+- Chart button: tracker, data / live timing and pit lane feeds, with a short description each
+- Switch feeds without leaving the player; replays continue at the same moment
+- Remote: ▲ reaches the buttons (◀ ▶ + OK), blue opens the onboards, typing a car number (e.g. 1 then 6) jumps straight to that driver
+- Feed names in capitals ("TRACKER") are shown as "Tracker"
+
 ## 0.2.8 — 2026-11-03
 
 - Progress bar: red knob at the current position; click anywhere on the bar with the pointer to jump there

@@ -76,6 +76,9 @@ The session is stored on the TV and refreshed automatically. The playback token 
 | browsing   | red             | jump to the live session (also the red LIVE tab) |
 | player     | OK / play/pause | pause / play |
 | player     | ◀ ▶             | 15 s back / forward |
+| player     | ▲ then ◀ ▶ + OK | buttons: helmet = onboard cameras, chart = tracker & data, ⚙ = commentary language |
+| player     | blue            | onboard cameras |
+| player     | car number keys | jump to that driver's onboard (e.g. 1 then 6) |
 | player     | green           | audio menu: International (English), Nederlands, Deutsch, …, natural sound; every video starts in English |
 | player     | red             | go to live |
 | everywhere | BACK            | back; on the home screen it closes the app |

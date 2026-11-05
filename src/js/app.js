@@ -19,7 +19,7 @@
     catalogProvider: 'WEB_HLS',                                 // voor menu/pagina's/lijsten (volledige catalogus)
     playProviders: ['BIG_SCREEN_DASH', 'WEB_DASH', 'BIG_SCREEN_HLS', 'WEB_HLS'], // voor afspelen: eerste bruikbare wint
     entitlement: 'F1_TV_Pro_Annual/14',
-    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.8;playerVersion=4.3.6',
+    deviceInfo: 'device=web;screen=bigscreen;os=webos;model=lgtv;osVersion=4.5;appVersion=0.2.9;playerVersion=4.3.6',
     deviceInfoTv: 'device=tvos;screen=bigscreen;os=tvos;model=appletv14.1;osVersion=16.4;appVersion=2.11.0;playerVersion=3.16.0', // what the tv client id normally sends
     muxUrls: [
       'https://cdnjs.cloudflare.com/ajax/libs/mux.js/6.3.0/mux.min.js',
@@ -567,7 +567,10 @@
       $('pbar').addEventListener('click', function (e) { e.stopPropagation(); self.seekToClientX(e.clientX); });
       $('pbar').addEventListener('mouseover', function () { $('pbar').className = 'pbar hover'; });
       $('pbar').addEventListener('mouseout', function () { $('pbar').className = 'pbar'; });
-      $('psettings').addEventListener('click', function (e) { e.stopPropagation(); if (self.menuOpen) self.closeAudioMenu(); else self.openAudioMenu(); });
+      var kinds = { psettings: 'audio', pdata: 'data', ponboard: 'onboard' };
+      Object.keys(kinds).forEach(function (id) {
+        $(id).addEventListener('click', function (e) { e.stopPropagation(); if (self.menuOpen && self.menu.kind === kinds[id]) self.closeMenu(); else self.openMenu(kinds[id]); });
+      });
     },
 
     fmt: function (sec) {
@@ -599,6 +602,10 @@
       var self = this;
       this.lastInfo = info;
       this.back = info.back || 'browse';
+      this.feeds = info.feeds || null;
+      this.currentUrl = info.playbackUrl;
+      this.btnFocus = -1;
+      this.updateButtons(); this.paintBtns();
       UI.show('player');
       $('player-title').textContent = info.title;
       $('player-sub').textContent = info.sub || '';
@@ -620,7 +627,7 @@
             var mime = ent.isDash ? 'application/dash+xml' : (ent.isHls ? 'application/x-mpegURL' : undefined);
             Debug.log('load', mime, ent.laURL ? 'drm ' + (ent.drmType || 'widevine?') : 'no drm', 'muxjs', !!window.muxjs);
             if (!window.muxjs) Debug.log('WARNING: mux.js missing, MPEG-TS videos will fail');
-            self.player.load(ent.url, null, mime).then(function () {
+            self.player.load(ent.url, info.startAt || null, mime).then(function () {
               self.live = self.player.isLive();
               Debug.log('loaded; live', self.live, 'audio', JSON.stringify(self.player.getAudioLanguages()));
               self.applyPreferredAudio();
@@ -691,46 +698,157 @@
       this.updateSub();
     },
 
-    /* audio menu (green button) */
-    menuOpen: false, menuIdx: 0, menuTracks: [],
-    openAudioMenu: function () {
+    /* ---------- player menus: ⚙ commentary language, helmet = onboards, chart = tracker & data ----------
+       One popup that drops up from its button. Items: {label, sub, num, color, active, choose()}. */
+    menuOpen: false, menu: null,
+    BTNS: ['ponboard', 'pdata', 'psettings'],
+    btnFocus: -1,
+
+    feedLabel: function (f) {
+      var t = String(f.title || '').toLowerCase();
+      if (f.type === 'main') return 'International';
+      if (!/[a-z]/.test(f.title || '')) t = t; else return f.title; // keep F1's own mixed-case names
+      return t.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    },
+    feedSub: function (f) {
+      var t = String(f.title || '');
+      if (f.type === 'main') return 'Main broadcast';
+      if (/track/i.test(t)) return 'Live driver tracker map';
+      if (/data|timing/i.test(t)) return 'Live timing & stats';
+      if (/pit/i.test(t)) return 'Pit lane cameras';
+      if (/live/i.test(t)) return 'Studio & analysis';
+      return '';
+    },
+    onboards: function () { var f = this.feeds || [], o = []; for (var i = 0; i < f.length; i++) if (f[i].driver || f[i].type === 'obc') o.push(f[i]); return o; },
+    dataFeeds: function () { var f = this.feeds || [], o = []; for (var i = 0; i < f.length; i++) if (f[i].type === 'main' || !(f[i].driver || f[i].type === 'obc')) o.push(f[i]); return o; },
+
+    /* show only the buttons that have something behind them */
+    updateButtons: function () {
+      $('ponboard').style.display = this.onboards().length ? '' : 'none';
+      $('pdata').style.display = this.dataFeeds().length > 1 ? '' : 'none';
+      $('pctl-help').style.display = (this.onboards().length || this.dataFeeds().length > 1) ? '' : 'none';
+    },
+    visibleBtns: function () { var o = []; for (var i = 0; i < this.BTNS.length; i++) if ($(this.BTNS[i]).style.display !== 'none') o.push(this.BTNS[i]); return o; },
+    paintBtns: function () {
+      var open = this.menuOpen && this.menu ? this.menu.btn : null, vis = this.visibleBtns(), foc = vis[this.btnFocus] || null;
+      for (var i = 0; i < this.BTNS.length; i++) { var id = this.BTNS[i]; $(id).className = 'pgear' + ((id === open || id === foc) ? ' focus' : ''); }
+    },
+
+    feedItems: function (list) {
+      var self = this, items = [];
+      for (var i = 0; i < list.length; i++) (function (f) {
+        items.push({ label: f.driver ? f.title : self.feedLabel(f), sub: f.driver ? (f.teamName || '') : self.feedSub(f), num: f.driver ? f.racingNumber : '',
+                     color: f.driver && f.hex ? '#' + String(f.hex).replace('#', '') : '', active: f.playbackUrl === self.currentUrl,
+                     choose: function () { self.switchFeed(f); } });
+      })(list[i]);
+      return items;
+    },
+
+    openMenu: function (kind) {
       if (!this.player) return;
-      var self = this;
-      this.menuTracks = this.audioTracks();
-      if (!this.menuTracks.length) { this.msg('No audio tracks yet'); setTimeout(function () { self.msg(null); }, 1500); return; }
-      this.menuIdx = 0;
-      for (var i = 0; i < this.menuTracks.length; i++) if (this.menuTracks[i].active) this.menuIdx = i;
-      this.menuOpen = true;
-      this.renderAudioMenu();
-      $('audio-menu').className = 'audio-menu';
-      $('psettings').className = 'pgear focus';
-      $('player-overlay').style.display = 'block';   // menu drops up from the ⚙ button, so keep the bar visible
+      var self = this, m;
+      if (kind === 'audio') {
+        var tracks = this.audioTracks();
+        if (!tracks.length) { this.msg('No audio tracks yet'); setTimeout(function () { self.msg(null); }, 1500); return; }
+        m = { kind: kind, btn: 'psettings', title: 'Commentary language', cols: 1, items: tracks.map(function (t) { return { label: t.label, active: t.active, choose: function () { self.selectAudio(t); } }; }) };
+      } else if (kind === 'onboard') {
+        var ob = this.onboards(); if (!ob.length) return;
+        var main = (this.feeds || []).filter(function (f) { return f.type === 'main'; });
+        m = { kind: kind, btn: 'ponboard', title: 'Onboard cameras', cols: 2, items: this.feedItems(main.concat(ob)) };
+      } else {
+        var df = this.dataFeeds(); if (df.length < 2) return;
+        m = { kind: kind, btn: 'pdata', title: 'Tracker & data', cols: 1, items: this.feedItems(df) };
+      }
+      m.idx = 0;
+      for (var i = 0; i < m.items.length; i++) if (m.items[i].active) m.idx = i;
+      this.menu = m; this.menuOpen = true;
+      var right = { psettings: 60, pdata: 136, ponboard: 212 }[m.btn];
+      var el = $('audio-menu'); el.style.right = right + 'px';
+      el.className = 'audio-menu' + (m.cols > 1 ? ' grid' : '');
+      $('am-title').textContent = m.title;
+      this.renderMenu();
+      this.paintBtns();
+      $('player-overlay').style.display = 'block';   // the menu drops up from its button, so keep the bar visible
       clearTimeout(this.overlayTimer);
     },
-    renderAudioMenu: function () {
-      var self = this, html = '';
-      for (var i = 0; i < this.menuTracks.length; i++) {
-        var t = this.menuTracks[i];
-        html += '<div class="am-row' + (i === this.menuIdx ? ' focus' : '') + '" data-i="' + i + '"><span class="am-dot">' + (t.active ? '●' : '') + '</span>' + esc(t.label) + '</div>';
+    openAudioMenu: function () { this.openMenu('audio'); },
+    renderMenu: function () {
+      var self = this, m = this.menu, html = '';
+      for (var i = 0; i < m.items.length; i++) {
+        var t = m.items[i];
+        html += '<div class="am-row' + (i === m.idx ? ' focus' : '') + (t.active ? ' active' : '') + '" data-i="' + i + '">' +
+                '<span class="am-dot">' + (t.active ? '●' : '') + '</span>' +
+                (m.kind === 'onboard' ? '<span class="am-num">' + esc(t.num || '') + '</span><span class="am-swatch" style="background:' + (t.color || 'transparent') + '"></span>' : '') +
+                '<span class="am-text"><span class="am-label">' + esc(t.label) + '</span>' + (t.sub ? '<span class="am-sub">' + esc(t.sub) + '</span>' : '') + '</span></div>';
       }
       $('audio-list').innerHTML = html;
       var rows = $('audio-list').querySelectorAll('.am-row');
       for (i = 0; i < rows.length; i++) (function (el, idx) {
-        el.onmouseover = function () { self.menuIdx = idx; self.renderAudioMenu(); };
-        el.onclick = function () { self.menuIdx = idx; self.menuChoose(); };
+        el.onmouseover = function () { if (self.menu.idx !== idx) { self.menu.idx = idx; self.renderMenu(); } };
+        el.onclick = function (e) { e.stopPropagation(); self.menu.idx = idx; self.menuChoose(); };
       })(rows[i], i);
+      var f = $('audio-list').querySelector('.am-row.focus'), list = $('audio-list');
+      if (f) { if (f.offsetTop < list.scrollTop) list.scrollTop = f.offsetTop; else if (f.offsetTop + f.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = f.offsetTop + f.offsetHeight - list.clientHeight; }
     },
-    closeAudioMenu: function () { this.menuOpen = false; $('audio-menu').className = 'audio-menu hidden'; $('psettings').className = 'pgear'; this.showOverlay(); },
-    menuMove: function (d) { this.menuIdx = Math.max(0, Math.min(this.menuTracks.length - 1, this.menuIdx + d)); this.renderAudioMenu(); },
-    menuChoose: function () { var t = this.menuTracks[this.menuIdx]; if (t) this.selectAudio(t); this.closeAudioMenu(); },
+    closeMenu: function () { this.menuOpen = false; this.menu = null; $('audio-menu').className = 'audio-menu hidden'; this.paintBtns(); this.showOverlay(); },
+    closeAudioMenu: function () { this.closeMenu(); },
+    menuMove: function (d) { var m = this.menu; m.idx = Math.max(0, Math.min(m.items.length - 1, m.idx + d)); this.renderMenu(); },
+    menuChoose: function () { var t = this.menu && this.menu.items[this.menu.idx]; this.closeMenu(); if (t) t.choose(); },
     menuKey: function (k) {
+      var cols = this.menu.cols || 1;
       switch (k) {
-        case KEY.UP: this.menuMove(-1); return true;
-        case KEY.DOWN: this.menuMove(1); return true;
+        case KEY.UP: this.menuMove(-cols); return true;
+        case KEY.DOWN: this.menuMove(cols); return true;
+        case KEY.LEFT: if (cols > 1) this.menuMove(-1); return true;
+        case KEY.RIGHT: if (cols > 1) this.menuMove(1); return true;
         case KEY.OK: this.menuChoose(); return true;
-        case KEY.BACK: case KEY.GREEN: this.closeAudioMenu(); return true;
+        case KEY.BACK: this.closeMenu(); return true;
+        case KEY.GREEN: if (this.menu.kind === 'audio') this.closeMenu(); else this.openMenu('audio'); return true;
+        case KEY.BLUE: if (this.menu.kind === 'onboard') this.closeMenu(); else this.openMenu('onboard'); return true;
       }
-      return true; // other keys do nothing while the menu is open
+      if (k >= 48 && k <= 57) { this.closeMenu(); this.digit(k - 48); }
+      return true; // other keys do nothing while a menu is open
+    },
+
+    /* button row in the overlay: ▲ to enter, ◀ ▶ to move, OK to open, ▼/BACK to leave */
+    btnKey: function (k) {
+      var vis = this.visibleBtns();
+      switch (k) {
+        case KEY.LEFT: this.btnFocus = Math.max(0, this.btnFocus - 1); break;
+        case KEY.RIGHT: this.btnFocus = Math.min(vis.length - 1, this.btnFocus + 1); break;
+        case KEY.OK: this.openMenu({ ponboard: 'onboard', pdata: 'data', psettings: 'audio' }[vis[this.btnFocus]]); return true;
+        case KEY.DOWN: case KEY.BACK: this.btnFocus = -1; break;
+        default: return false;
+      }
+      this.paintBtns(); this.showOverlay(); return true;
+    },
+    enterBtns: function () { var vis = this.visibleBtns(); if (!vis.length) return; this.btnFocus = 0; this.paintBtns(); this.showOverlay(); },
+
+    /* type a car number on the remote (e.g. 1 then 6) to jump to that onboard */
+    digitBuf: '', digitTimer: null,
+    digit: function (n) {
+      var self = this;
+      if (!this.onboards().length) return;
+      this.digitBuf = (this.digitBuf + n).slice(-2);
+      this.msg('Onboard #' + this.digitBuf + '…');
+      clearTimeout(this.digitTimer);
+      this.digitTimer = setTimeout(function () {
+        var want = String(parseInt(self.digitBuf, 10)), ob = self.onboards(), hit = null;
+        self.digitBuf = '';
+        for (var i = 0; i < ob.length; i++) if (String(ob[i].racingNumber) === want) hit = ob[i];
+        if (hit) self.switchFeed(hit);
+        else { self.msg('No onboard for #' + want); setTimeout(function () { self.msg(null); }, 1500); }
+      }, 900);
+    },
+
+    /* switch to another feed of the same session; replays continue at the same moment */
+    switchFeed: function (f) {
+      if (!f || f.playbackUrl === this.currentUrl) return;
+      var at = (!this.live && this.video && this.video.currentTime > 5) ? this.video.currentTime : null;
+      var base = this.lastInfo || {};
+      Debug.log('switch feed ->', f.title, 'at', at);
+      this.play({ title: (base.session || '') + (base.session ? ' — ' : '') + (f.driver ? f.title : this.feedLabel(f)), sub: base.sub, playbackUrl: f.playbackUrl,
+                  back: base.back, feeds: this.feeds, session: base.session, startAt: at });
     },
 
     togglePause: function () {
@@ -1123,7 +1241,7 @@
             var f = feeds[i];
             var swatch = f.driver ? '<div class="swatch" style="background:#' + esc((f.hex || '555').replace('#', '')) + '"></div>' : '';
             var num = f.driver && f.racingNumber ? '<div class="num">' + esc(f.racingNumber) + '</div>' : '';
-            html += '<div class="lrow" data-i="' + i + '">' + num + swatch + '<div class="main">' + esc(f.title) + '</div>' + (f.teamName ? '<div class="sub">' + esc(f.teamName) + '</div>' : '') + '</div>';
+            html += '<div class="lrow" data-i="' + i + '">' + num + swatch + '<div class="main">' + esc(f.driver ? f.title : Player.feedLabel(f)) + '</div>' + (f.teamName ? '<div class="sub">' + esc(f.teamName) + '</div>' : '') + '</div>';
           }
           $('feeds-list').innerHTML = html;
           self.els = Array.prototype.slice.call($('feeds-list').querySelectorAll('.lrow'));
@@ -1149,7 +1267,8 @@
         var f = State.feeds && State.feeds[this.idx];
         if (!f) return;
         State.feedIndex = this.idx;
-        Player.play({ title: State.session.title + ' — ' + f.title, sub: State.session.sub, playbackUrl: f.playbackUrl, back: 'feeds' });
+        Player.play({ title: State.session.title + ' — ' + (f.driver ? f.title : Player.feedLabel(f)), sub: State.session.sub, playbackUrl: f.playbackUrl, back: 'feeds',
+                      feeds: State.feeds, session: State.session.title });
       },
       key: function (k) {
         switch (k) {
@@ -1168,14 +1287,18 @@
       enter: function () {},
       key: function (k) {
         if (Player.menuOpen) return Player.menuKey(k);
+        if (Player.btnFocus >= 0 && Player.btnKey(k)) return true;
+        if (k >= 48 && k <= 57) { Player.digit(k - 48); return true; }
         switch (k) {
           case KEY.BACK: case KEY.STOP: Player.stop(); UI.show(Player.back === 'feeds' ? 'feeds' : 'browse'); return true;
           case KEY.OK: case KEY.PLAY: case KEY.PAUSE: Player.togglePause(); return true;
           case KEY.LEFT: case KEY.RW: Player.seek(-CFG.seekStep); return true;
           case KEY.RIGHT: case KEY.FF: Player.seek(CFG.seekStep); return true;
           case KEY.RED: Player.goLive(); return true;
-          case KEY.GREEN: Player.openAudioMenu(); return true;
-          case KEY.UP: case KEY.DOWN: Player.showOverlay(); return true;
+          case KEY.GREEN: Player.openMenu('audio'); return true;
+          case KEY.BLUE: Player.openMenu('onboard'); return true;
+          case KEY.UP: Player.enterBtns(); return true;
+          case KEY.DOWN: Player.showOverlay(); return true;
         }
         return false;
       }

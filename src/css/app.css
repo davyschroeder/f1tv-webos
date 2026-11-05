@@ -154,7 +154,19 @@ html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hid
 .pbar-fill { height: 100%; width: 0; background: #e10600; border-radius: 4px; }
 .pbar-knob { position: absolute; top: 50%; left: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #e10600; box-shadow: 0 0 0 3px rgba(255,255,255,0.85); }
 .pbar.hover .pbar-knob { width: 28px; height: 28px; margin: -14px 0 0 -14px; }
-.pgear { width: 56px; height: 56px; margin-left: 20px; border-radius: 50%; font-size: 34px; line-height: 56px; text-align: center; background: rgba(255,255,255,0.12); border: 3px solid transparent; cursor: pointer; }
+.pgear { width: 56px; height: 56px; margin-left: 20px; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; border-radius: 50%; font-size: 34px; line-height: 56px; text-align: center; background: rgba(255,255,255,0.12); border: 3px solid transparent; cursor: pointer; }
 .pgear.focus, .pgear:hover { background: #fff; color: #15151e; }
 
 .audio-menu:after { content: ""; position: absolute; right: 22px; bottom: -14px; border: 12px solid transparent; border-bottom: 0; border-top-color: #3a3a4a; } /* points down at the ⚙ button */
+
+/* menus: grid for onboards, sub-lines, numbers and team colours */
+#audio-list { max-height: 620px; overflow: hidden; }
+.audio-menu.grid { min-width: 980px; }
+.audio-menu.grid #audio-list { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+.audio-menu.grid .am-row { width: 50%; padding: 10px 24px; font-size: 26px; }
+.am-text { display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; min-width: 0; }
+.am-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.am-sub { font-size: 20px; color: #9a9aa6; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.am-num { width: 46px; font-weight: bold; color: #d8d8e0; text-align: right; margin-right: 14px; font-family: 'Orbitron', "Helvetica Neue", Arial, sans-serif; }
+.am-swatch { width: 8px; height: 40px; border-radius: 3px; margin-right: 16px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.am-row.active .am-label { color: #fff; font-weight: bold; }
